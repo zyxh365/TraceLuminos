@@ -27,7 +27,7 @@ It brings together **distributed tracing**, **business metrics**, and **intellig
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/TraceLuminos.git
+git clone https://github.com/zyxh365/TraceLuminos.git
 cd TraceLuminos
 
 # Install dependencies
