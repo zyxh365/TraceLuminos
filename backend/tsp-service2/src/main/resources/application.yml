@@ -1,0 +1,32 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: tsp-service2
+  profiles:
+    active: @profileActive@
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# 异步线程池配置
+tsp:
+  async:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 100
+  kafka:
+    topic:
+      command: tsp.command.events   # Kafka Topic 名称
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [traceId=%X{trace_id:-NONE}] [spanId=%X{span_id:-NONE}] %logger{25} - %msg%n"
+  level:
+    root: INFO
+    com.tsp: DEBUG

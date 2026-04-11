@@ -1,0 +1,33 @@
+server:
+  port: 8091
+
+spring:
+  application:
+    name: tsp-service1
+  profiles:
+    active: @profileActive@
+
+# OpenFeign 超时配置
+feign:
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 10000
+  # ★ 关闭 Hystrix/CircuitBreaker，避免干扰链路传播
+  circuitbreaker:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [traceId=%X{trace_id:-NONE}] [spanId=%X{span_id:-NONE}] %logger{25} - %msg%n"
+  level:
+    root: INFO
+    com.tsp: DEBUG

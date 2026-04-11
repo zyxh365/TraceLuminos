@@ -1,0 +1,148 @@
+# TSP 可观测性平台 - Server 2 配置
+# 版本：v4.1
+# 架构：Kong + MySQL + Redis（Docker）+ tsp-monitor-gateway + Java 服务（宿主机 java -jar）
+
+networks:
+  tsp:
+    driver: bridge
+
+volumes:
+  kong-data:
+  mysql-data:
+  redis-data:
+
+services:
+
+  # ── MySQL 8.0（业务数据库）────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: tsp-mysql
+    networks: [tsp]
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass_2024
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      MYSQL_DEFAULT_AUTHENTICATION_PLUGIN: mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 4g }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Redis 7（缓存）───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tsp-redis
+    networks: [tsp]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 1g }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Kong Database（Kong 配置存储）─────────────────────────
+  kong-db:
+    image: postgres:15-alpine
+    container_name: tsp-kong-db
+    networks: [tsp]
+    environment:
+      POSTGRES_DB: kong
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong_pass_2024
+    volumes:
+      - kong-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 512m }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Kong 初始化（只跑一次）────────────────────────────────
+  kong-migration:
+    image: kong:3.6
+    container_name: tsp-kong-migration
+    networks: [tsp]
+    depends_on:
+      kong-db:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_pass_2024
+      KONG_PG_DATABASE: kong
+    command: kong migrations bootstrap
+    restart: on-failure
+
+  # ── Kong Gateway（API 网关 + OTel 插件）──────────────────
+  kong:
+    image: kong:3.6
+    container_name: tsp-kong
+    networks: [tsp]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"   # HTTP 代理入口
+      - "8001:8001"   # Admin API
+      - "8002:8002"   # Kong Manager OSS（Web UI）
+      - "8443:8443"   # HTTPS 代理（可选）
+    depends_on:
+      kong-migration:
+        condition: service_completed_successfully
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_pass_2024
+      KONG_PG_DATABASE: kong
+      KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_ADMIN_GUI_LISTEN: "0.0.0.0:8002"
+      KONG_ADMIN_GUI_URL: "http://${SERVER2_IP}:8002"
+      KONG_ADMIN_GUI_AUTH: "no-auth"
+      KONG_ENFORCE_RBAC: "off"
+      KONG_TRACING_INSTRUMENTATIONS: all
+      KONG_TRACING_SAMPLING_RATE: "1.0"
+      KONG_OPENTELEMETRY_TRACING: "true"
+      # 上报到 Server1 的 OTel Collector
+      KONG_PLUGINS: "bundled,opentelemetry"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── tsp-monitor-gateway（自研后端 API + React 前端看板）──────
+  # 采用宿主机 java -jar 方式启动（与 Java Service 一致），参见部署文档 4.4 节
+  # 端口：8085，context-path：/monitor
+  # 查询 Server1 的 ClickHouse 和 VictoriaMetrics

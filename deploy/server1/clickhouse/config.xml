@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+  <max_server_memory_usage_to_ram_ratio>0.6</max_server_memory_usage_to_ram_ratio>
+  <max_concurrent_queries>50</max_concurrent_queries>
+  <mark_cache_size>1073741824</mark_cache_size>
+
+  <!-- HTTP 接口 CORS（Play UI + HTTP API 局域网跨域访问） -->
+  <http_options_response>
+    <header name="Access-Control-Allow-Origin" value="*" />
+    <header name="Access-Control-Allow-Headers" value="Content-Type, X-ClickHouse-Format, X-ClickHouse-User, X-ClickHouse-Key" />
+    <header name="Access-Control-Allow-Methods" value="GET, POST, OPTIONS" />
+  </http_options_response>
+
+  <logger>
+     <level>warning</level>
+  </logger>
+</clickhouse>
+

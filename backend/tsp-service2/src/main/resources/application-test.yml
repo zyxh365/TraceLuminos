@@ -1,0 +1,57 @@
+spring:
+  datasource:
+    url: jdbc:mysql://172.25.100.136:3306/trace_demo?useUnicode=true&characterEncoding=utf-8&rewriteBatchedStatements=true&allowMultiQueries=true
+    username: chery-alert
+    password: Chery@Alert2024
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update       # 自动建表
+    show-sql: true
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+
+  redis:
+    host: 172.25.100.136
+    port: 6379
+
+  kafka:
+    bootstrap-servers: 172.25.100.135:9092
+    producer:
+      bootstrap-servers: 172.25.100.135:9092
+      # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      #发送失败，重试次数
+      retries: 3
+      # acks=0 ： 生产者在成功写入消息之前不会等待任何来自服务器的响应。
+      # acks=1 ： 只要集群的首领节点收到消息，生产者就会收到一个来自服务器成功响应。
+      # acks=all ：只有当所有参与复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功响应。
+      acks: 1
+      properties:
+        linger:
+          ms: 1
+      batch-size: 16384
+      buffer-memory: 33554432
+    consumer:
+      bootstrap-servers: 172.25.100.135:9092
+      auto-offset-reset: earliest
+      group-id: ${spring.application.name}
+      enable-auto-commit: true
+      auto-commit-interval: 1000
+      # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    listener:
+      ack-mode:
+
+# 关闭 Kafka 自动配置（本 demo 不用）
+  #  autoconfigure:
+  #    exclude:
+  #      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration

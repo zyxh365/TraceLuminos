@@ -1,0 +1,98 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # Java Agent / 服务端上报
+      http:
+        endpoint: 0.0.0.0:4318   # H5 Web SDK 上报（支持 CORS）
+        cors:
+          allowed_origins: ["*"]   # Demo Frontend 跨域用
+
+processors:
+  # 批量发送：提升转发性能
+  batch:
+    timeout: 5s
+    send_batch_size: 1000
+
+  # 内存保护：防止突发流量打爆内存
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 800
+    spike_limit_mib: 200
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: tsp-test
+        action: upsert
+
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          # ── 中间件节点标记 ────────────────────────────────────────
+          # ★ kind 用数字：2=SERVER 3=CLIENT 4=PRODUCER 5=CONSUMER
+          - 'set(attributes["peer.service"], "MySQL") where attributes["db.system"] == "mysql" and kind == 3'
+          - 'set(attributes["peer.service"], "Redis") where attributes["db.system"] == "redis" and kind == 3'
+          - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 4'
+          - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 5'
+
+          # ── 统一 Baggage 字段名（加上 baggage. 前缀，便于识别）──────
+          # copy-from-baggage 写入的是 userId，这里重命名为 baggage.userId
+          - 'set(attributes["baggage.userId"],   attributes["userId"])   where attributes["userId"] != nil'
+          - 'set(attributes["baggage.vin"],      attributes["vin"])      where attributes["vin"] != nil'
+          - 'set(attributes["baggage.tenantId"], attributes["tenantId"]) where attributes["tenantId"] != nil'
+          - 'set(attributes["baggage.platform"], attributes["platform"]) where attributes["platform"] != nil'
+
+  filter/kong_internal:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name == "kong.router"'
+        - 'name == "kong.access.plugin.opentelemetry"'
+        - 'name == "kong.header_filter.plugin.opentelemetry"'
+
+exporters:
+  # Trace → Kafka（SigNoz 消费）
+  kafka:
+    brokers: ["kafka:9092"]
+    topic: signoz-spans
+    encoding: otlp_proto
+    timeout: 10s
+
+  # Metrics → ClickHouse
+  signozclickhousemetrics:
+    dsn: tcp://clickhouse:9000
+
+  # Logs → ClickHouse
+  clickhouselogsexporter:
+    dsn: tcp://clickhouse:9000
+
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/kong_internal, transform, resource, batch]
+      exporters: [kafka]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [signozclickhousemetrics]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [clickhouselogsexporter]
+
+  telemetry:
+    logs:
+      level: warn

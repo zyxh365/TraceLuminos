@@ -1,0 +1,107 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins: ["*"]
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 2048
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1500
+    spike_limit_mib: 512
+
+  # ── 过滤 Kong 内部 Span ─────────────────────────────────────
+  # Kong OTel Plugin 会生成 router/access/header_filter 等内部 Span，
+  # 对链路分析无意义，在 Edge 层直接过滤，减少 Kafka 吞吐量。
+  filter/kong_internal:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name == "kong.router"'
+        - 'name == "kong.access.plugin.opentelemetry"'
+        - 'name == "kong.header_filter.plugin.opentelemetry"'
+
+  # ── Span 属性变换 ────────────────────────────────────────────
+  # 1. peer.service 映射：为 DB/消息队列 CLIENT/PRODUCER/CONSUMER Span
+  #    设置 peer.service 属性，供拓扑物化视图 mv_service_topology_hourly 提取调用关系
+  # 2. Baggage 字段标准化：Java Agent copy-from-baggage 写入的 userId/vin 等属性
+  #    统一加 baggage. 前缀，便于 Central Collector 进一步映射为 biz.* 字段
+  transform/traces:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          # ── 中间件节点标记（拓扑图需要）─────────────────────
+          # kind 数值：2=SERVER 3=CLIENT 4=PRODUCER 5=CONSUMER
+          - 'set(attributes["peer.service"], "MySQL") where attributes["db.system"] == "mysql" and kind == 3'
+          - 'set(attributes["peer.service"], "Redis") where attributes["db.system"] == "redis" and kind == 3'
+          - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 4'
+          - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 5'
+
+          # ── 统一 Baggage 字段名（加上 baggage. 前缀）───────
+          # copy-from-baggage 写入的是 userId，这里重命名为 baggage.userId
+          - 'set(attributes["baggage.userId"],   attributes["userId"])   where attributes["userId"] != nil'
+          - 'set(attributes["baggage.vin"],      attributes["vin"])      where attributes["vin"] != nil'
+          - 'set(attributes["baggage.tenantId"], attributes["tenantId"]) where attributes["tenantId"] != nil'
+          - 'set(attributes["baggage.platform"], attributes["platform"]) where attributes["platform"] != nil'
+
+exporters:
+  kafka/traces:
+    brokers: ["kafka:9092"]
+    traces:
+      topic: tsp-traces
+      encoding: otlp_proto
+    sending_queue:
+      enabled: true
+      num_consumers: 8
+      queue_size: 10000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+
+  kafka/metrics:
+    brokers: ["kafka:9092"]
+    metrics:
+      topic: tsp-metrics
+      encoding: otlp_proto
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 2000
+
+  kafka/logs:
+    brokers: ["kafka:9092"]
+    logs:
+      topic: tsp-logs
+      encoding: otlp_proto
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/kong_internal, transform/traces, batch]
+      exporters: [kafka/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [kafka/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [kafka/logs]
+  telemetry:
+    logs:
+      level: info

@@ -1,0 +1,66 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /monitor
+
+spring:
+  application:
+    name: tsp-monitor-gateway
+  profiles:
+    active: dev
+
+  # Jackson 配置
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+
+# ClickHouse 配置
+clickhouse:
+  url: jdbc:clickhouse://172.25.100.135:8123/platform
+  username: default
+  password:
+  socket-timeout: 30000
+
+# 华为云 APM 配置
+huaweicloud:
+  apm:
+    enabled: true
+    endpoint: https://apm.cn-north-4.myhuaweicloud.com
+    access-key: ${HUAWEIFCLOUD_APM_ACCESS_KEY:}
+    secret-key: ${HUAWEIFCLOUD_APM_SECRET_KEY:}
+    project-id: ${HUAWEIFCLOUD_APM_PROJECT_ID:}
+    region: cn-north-4
+
+# Flink 配置
+flink:
+  job-manager:
+    address: localhost
+    port: 8081
+  checkpoint:
+    interval: 60000
+    timeout: 600000
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.tsp.monitor.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/tsp-monitor-gateway.log
+    max-size: 100MB
+    max-history: 30

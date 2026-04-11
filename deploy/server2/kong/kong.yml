@@ -1,0 +1,33 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  # 路由到 Demo Java Service
+  - name: tsp-demo-java
+    url: http://demo-java:8090
+    routes:
+      - name: demo-java-route
+        paths: ["/api"]
+        strip_path: false
+    plugins:
+      # OTel 插件：把 Kong 的请求 Trace 上报到 Server1
+      - name: opentelemetry
+        config:
+          endpoint: "http://${SERVER1_IP}:4318/v1/traces"
+          resource_attributes:
+            service.name: kong-gateway
+            deployment.environment: tsp-test
+          propagation:
+            extract: [w3c]
+            inject: [w3c]
+
+      # 限流
+      - name: rate-limiting
+        config:
+          minute: 300
+          policy: local
+
+      # 请求日志（OTLP）
+      - name: opentelemetry
+        config:
+          endpoint: "http://${SERVER1_IP}:4318/v1/logs"

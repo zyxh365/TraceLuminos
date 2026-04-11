@@ -1,0 +1,170 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: tsp-service2
+
+  # 新的云上开发环境
+  datasource:
+    url: jdbc:mysql://172.19.64.30:13306/trace_demo?useUnicode=true&characterEncoding=utf-8&rewriteBatchedStatements=true&allowMultiQueries=true
+    username: chery-alert
+    password: 1q2w3e4r@!
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # TSP整合开发环境
+  #  datasource:
+  #    url: jdbc:mysql://172.25.171.7:3306/chery_bfg_ntsp?useUnicode=true&characterEncoding=utf-8&rewriteBatchedStatements=true&allowMultiQueries=true
+  #    username: chery_bfg_ntsp_rw
+  #    password: +R-2+aoe7ccYF3M+
+  #    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update       # 自动建表
+    show-sql: true
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+
+    # 单点模式配置
+  redis:
+    host: 172.19.64.30
+    port: 6379
+
+    # cluster模式配置
+  #  redis:
+  #    cluster:
+  #      nodes:
+  #        - 172.25.171.53:6379
+  #        - 172.25.171.50:6379
+  #        - 172.25.171.29:6379
+  #    password: tsp_Huawei@!123
+  #    #集群版
+  #    lettuce:
+  #      pool:
+  #        #连接池最大连接数(使用负值表示没有限制)
+  #        max-active: 100
+  #        #连接池最大阻塞等待时间(使用负值表示没有限制)
+  #        max-wait: -1
+  #        #连接池中的最大空闲连接
+  #        max-idle: 10
+  #        #连接池中的最小空闲连接
+  #        min-idle: 1
+  #      client:
+  #        retry:
+  #          enabled: true
+  #          max-attempts: 10 # 最大重试次数
+  #          initial-interval: 1000ms # 初始重试间隔时间
+  #    timeout: 100000
+
+  kafka:
+    bootstrap-servers: 172.25.171.37:9092,172.25.171.52:9092,172.25.171.54:9092
+    producer:
+      bootstrap-servers: 172.25.171.37:9092,172.25.171.52:9092,172.25.171.54:9092
+      # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      #发送失败，重试次数
+      retries: 3
+      # acks=0 ： 生产者在成功写入消息之前不会等待任何来自服务器的响应。
+      # acks=1 ： 只要集群的首领节点收到消息，生产者就会收到一个来自服务器成功响应。
+      # acks=all ：只有当所有参与复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功响应。
+      acks: 1
+      properties:
+        linger:
+          ms: 1
+      batch-size: 16384
+      buffer-memory: 33554432
+    consumer:
+      bootstrap-servers: 172.25.171.37:9092,172.25.171.52:9092,172.25.171.54:9092
+      auto-offset-reset: earliest
+      group-id: ${spring.application.name}
+      enable-auto-commit: true
+      auto-commit-interval: 1000
+      # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    listener:
+      ack-mode:
+    # 多套集群环境
+    cluster-one:
+      bootstrap-servers: 172.25.171.37:9092,172.25.171.52:9092,172.25.171.54:9092
+      producer:
+        # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+        key-serializer: org.apache.kafka.common.serialization.StringSerializer
+        value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+        #发送失败，重试次数
+        retries: 3
+        # acks=0 ： 生产者在成功写入消息之前不会等待任何来自服务器的响应。
+        # acks=1 ： 只要集群的首领节点收到消息，生产者就会收到一个来自服务器成功响应。
+        # acks=all ：只有当所有参与复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功响应。
+        acks: 1
+        properties:
+          linger:
+            ms: 1
+        batch-size: 16384
+        buffer-memory: 33554432
+      consumer:
+        auto-offset-reset: latest
+        group-id: ${spring.application.name}
+        enable-auto-commit: true
+        auto-commit-interval: 1000
+        # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+        key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    cluster-two:
+      bootstrap-servers: 172.25.171.37:9092,172.25.171.52:9092,172.25.171.54:9092
+      producer:
+        # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+        key-serializer: org.apache.kafka.common.serialization.StringSerializer
+        value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+        #发送失败，重试次数
+        retries: 3
+        # acks=0 ： 生产者在成功写入消息之前不会等待任何来自服务器的响应。
+        # acks=1 ： 只要集群的首领节点收到消息，生产者就会收到一个来自服务器成功响应。
+        # acks=all ：只有当所有参与复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功响应。
+        acks: 1
+        properties:
+          linger:
+            ms: 1
+        batch-size: 16384
+        buffer-memory: 33554432
+      consumer:
+        auto-offset-reset: latest
+        group-id: ${spring.application.name}
+        enable-auto-commit: true
+        auto-commit-interval: 1000
+        # 以下序列方式请根据项目实际情况进行配置，如果和下面相同则项目中可以不用配置
+        key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+        properties:
+          fetch.max.bytes: 104857600
+          fetch.max.wait.ms: 1000
+          session.timeout.ms: 10000
+
+# 关闭 Kafka 自动配置（本 demo 不用）
+  #  autoconfigure:
+  #    exclude:
+  #      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# 异步线程池配置
+tsp:
+  async:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 100
+  kafka:
+    topic:
+      command: tsp.command.events   # Kafka Topic 名称
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [traceId=%X{trace_id:-NONE}] [spanId=%X{span_id:-NONE}] %logger{25} - %msg%n"
+  level:
+    root: INFO
+    com.tsp: DEBUG
