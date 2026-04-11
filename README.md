@@ -1,8 +1,6 @@
-# TraceLuminos
-全链路追踪业务监控系统
 <div align="center">
   <h1>🔆 TraceLuminos</h1>
-  <p>Full-chain distributed tracing & business observability, built for production.</p>
+  <p>全链路追踪业务监控系统-Full-chain distributed tracing & business observability, built for production.</p>
 
   ![License](https://img.shields.io/badge/license-MIT-blue)
   ![Status](https://img.shields.io/badge/status-active-brightgreen)
