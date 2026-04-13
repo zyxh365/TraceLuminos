@@ -7,8 +7,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     proxy: {
-      '/biz':        { target: 'http://106.14.92.45:8000', changeOrigin: true },
-      '/core':       { target: 'http://106.14.92.45:8000', changeOrigin: true },
+      '/biz':        { target: 'http://172.25.100.136:8000', changeOrigin: true },
+      '/core':       { target: 'http://172.25.100.136:8000', changeOrigin: true },
       '/v1/traces':  { target: 'http://106.14.92.45:14318', changeOrigin: true },
       // '/biz':        { target: 'http://localhost:8091', changeOrigin: true },
       // '/core':       { target: 'http://localhost:8092', changeOrigin: true },
@@ -29,7 +29,7 @@ export default defineConfig({
       },
       // ★ tsp-monitor-gateway API 代理
       '/monitor': {
-        target: 'http://localhost:8085',
+        target: 'http://172.25.100.136:8000',
         changeOrigin: true,
       },
     },

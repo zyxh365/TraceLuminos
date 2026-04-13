@@ -1,6 +1,6 @@
 -- ============================================================
 -- TSP 自研可观测性平台 - ClickHouse 查询示例
--- 版本：v2.0（对应 tsp_spans 表结构）
+-- 版本：v2.1（增加远控业务监控查询）
 -- 数据库：platform
 -- ============================================================
 
@@ -350,3 +350,102 @@ ORDER BY partition DESC;
 -- 8.3 优化合并
 OPTIMIZE TABLE platform.tsp_spans PARTITION tuple() FINAL;
 OPTIMIZE TABLE platform.tsp_span_metrics PARTITION tuple() FINAL;
+
+
+-- ============================================================
+-- 九、远控业务监控查询（rc_minute_metrics / rc_command_metrics）
+-- ============================================================
+
+-- 9.1 端到端指令成功率趋势（每分钟）
+SELECT
+    toUnixTimestamp64Milli(time) AS timestamp,
+    sum(total_count) AS total,
+    sum(success_count) AS success,
+    sum(error_count) AS error,
+    sum(timeout_count) AS timeout,
+    sum(success_count) * 100.0 / nullIf(sum(total_count), 0) AS success_rate
+FROM rc_minute_metrics
+WHERE metric_type IN ('e2e_command', 'tsp_service', 'tbox_service')
+  AND time > now() - INTERVAL 1 HOUR
+GROUP BY time
+ORDER BY time;
+
+-- 9.2 TSP 远控服务实时指标
+SELECT
+    time,
+    sum(mqtt_fail_count) AS mqtt_fail,
+    sum(pending_count) AS pending_backlog,
+    avg(kafka_lag_ms) AS kafka_delay,
+    avg(dispatch_delay_ms) AS dispatch_delay,
+    sum(total_count) AS total
+FROM rc_minute_metrics
+WHERE metric_type = 'tsp_service'
+  AND time > now() - INTERVAL 30 MINUTE
+GROUP BY time
+ORDER BY time;
+
+-- 9.3 TBox 鉴权/权限失败统计（最近 1 小时）
+SELECT
+    time,
+    sum(auth_fail_count) AS auth_fail,
+    sum(permission_fail_count) AS permission_fail,
+    sum(duplicate_count) AS duplicate,
+    avg(p99_duration_ms) AS p99_delay
+FROM rc_minute_metrics
+WHERE metric_type = 'tbox_service'
+  AND time > now() - INTERVAL 1 HOUR
+GROUP BY time
+ORDER BY time;
+
+-- 9.4 短信唤醒成功率趋势
+SELECT
+    time,
+    sum(sms_total) AS sms_total,
+    sum(sms_success) AS sms_success,
+    sum(sms_fail) AS sms_fail,
+    sum(sms_wakeup_success) * 100.0 / nullIf(sum(sms_total), 0) AS wakeup_rate,
+    avg(sms_mno_latency_p99) AS mno_latency_p99
+FROM rc_minute_metrics
+WHERE metric_type = 'sms_service'
+  AND time > now() - INTERVAL 1 HOUR
+GROUP BY time
+ORDER BY time;
+
+-- 9.5 MQTT 连接 & 消息丢失率
+SELECT
+    time,
+    avg(online_vehicles) AS online_vehicles,
+    avg(mqtt_connections) AS mqtt_connections,
+    sum(mqtt_conn_fail) * 100.0 / nullIf(sum(mqtt_connections), 0) AS conn_fail_rate,
+    sum(mqtt_loss_count) * 100.0 / nullIf(sum(mqtt_throughput), 0) AS loss_rate
+FROM rc_minute_metrics
+WHERE metric_type = 'mqtt_connection'
+  AND time > now() - INTERVAL 1 HOUR
+GROUP BY time
+ORDER BY time;
+
+-- 9.6 远控失败原因分布（从 tsp_errors 表查询）
+SELECT
+    error_type,
+    count() AS count,
+    count() * 100.0 / sum(count()) OVER () AS percentage
+FROM tsp_errors
+WHERE biz_command_type != ''
+  AND time > now() - INTERVAL 24 HOUR
+GROUP BY error_type
+ORDER BY count DESC;
+
+-- 9.7 远控告警规则列表
+SELECT rule_id, rule_name, rule_group, metric_name,
+       operator, threshold, severity, enabled
+FROM tsp_alert_rules
+WHERE rule_group = 'remote_control'
+ORDER BY severity = 'critical' DESC, rule_name;
+
+-- 9.8 远控活跃告警（未恢复）
+SELECT alert_id, rule_name, severity, alert_time,
+       service_name, metric_value, threshold
+FROM tsp_alert_events
+WHERE rule_id IN (SELECT rule_id FROM tsp_alert_rules WHERE rule_group = 'remote_control')
+  AND recover_time IS NULL
+ORDER BY alert_time DESC;
