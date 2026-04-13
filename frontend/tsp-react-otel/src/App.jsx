@@ -15,6 +15,7 @@ import HuaweiCloudTestTopology from './huaweicloud/HuaweiCloudTestTopology.jsx';
 import HuaweiCloudV2         from './huaweicloud/HuaweiCloudV2.jsx';
 import HuaweiCloudV3         from './huaweicloud/HuaweiCloudV3.jsx';
 import ClickHouseTopology    from './components/ClickHouseTopology.jsx';
+import RemoteControlDashboard from './remote-control/RemoteControlDashboard.jsx';
 
 async function apiFetch(path, options = {}) {
   const baggageHeader = getBaggageHeader();
@@ -139,6 +140,9 @@ export default function App() {
           <button style={TAB_STYLES(activeTab === 'ch-topology')} onClick={() => setActiveTab('ch-topology')}>
             📊 服务拓扑
           </button>
+          <button style={TAB_STYLES(activeTab === 'remote-control')} onClick={() => setActiveTab('remote-control')}>
+            📡 远控监控
+          </button>
         </div>
 
         {/* 验证场景 Tab */}
@@ -173,6 +177,9 @@ export default function App() {
 
         {/* ClickHouse 服务拓扑 Tab */}
         <div style={{ display: activeTab === 'ch-topology' ? 'block' : 'none' }}><ClickHouseTopology /></div>
+
+        {/* 远控监控 Tab */}
+        <div style={{ display: activeTab === 'remote-control' ? 'block' : 'none' }}><RemoteControlDashboard /></div>
       </main>
     </div>
   );
