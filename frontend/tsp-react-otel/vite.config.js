@@ -10,7 +10,7 @@ export default defineConfig({
       '/biz':        { target: 'http://172.25.100.136:8000', changeOrigin: true },
       '/core':       { target: 'http://172.25.100.136:8000', changeOrigin: true },
       '/monitor':    { target: 'http://172.25.100.136:8000', changeOrigin: true },// ★ tsp-monitor-gateway API 代理
-      '/v1/traces':  { target: 'http://172.25.100.136:4318', changeOrigin: true },
+      '/v1/traces':  { target: 'http://172.25.100.135:4318', changeOrigin: true },
       // '/biz':        { target: 'http://localhost:8091', changeOrigin: true },
       // '/core':       { target: 'http://localhost:8092', changeOrigin: true },
       // '/v1/traces':  { target: 'http://localhost:4318', changeOrigin: true },
