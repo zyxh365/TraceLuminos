@@ -1,11 +1,11 @@
 import { useRef, useEffect } from 'react';
 import * as echarts from 'echarts/core';
 import { PieChart as EChartsPieChart } from 'echarts/charts';
-import { TooltipComponent, LegendComponent } from 'echarts/components';
+import { TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { CHART_THEME, COLORS } from '../constants.js';
 
-echarts.use([EChartsPieChart, TooltipComponent, LegendComponent, CanvasRenderer]);
+echarts.use([EChartsPieChart, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer]);
 
 /**
  * ECharts 饼图（用于失败原因分布）

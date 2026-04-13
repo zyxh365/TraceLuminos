@@ -1,11 +1,11 @@
 import { useRef, useEffect } from 'react';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent } from 'echarts/components';
+import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, TitleComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { CHART_THEME } from '../constants.js';
 
-echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, CanvasRenderer]);
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, TitleComponent, CanvasRenderer]);
 
 /**
  * ECharts 时序折线图
