@@ -20,7 +20,7 @@ export default function GaugeChart({ title, value, max = 100, color, alertThresh
     : (color || COLORS.success);
 
   useEffect(() => {
-    if (!chartRef.current) return;
+    if (!chartRef.current || chartRef.current.clientWidth === 0) return;
     if (!instanceRef.current) {
       instanceRef.current = echarts.init(chartRef.current);
     }

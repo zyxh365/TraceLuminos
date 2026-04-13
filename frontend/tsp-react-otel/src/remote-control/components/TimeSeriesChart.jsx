@@ -16,7 +16,7 @@ export default function TimeSeriesChart({ title, data, series, yAxisLabel = '', 
   const instanceRef = useRef(null);
 
   useEffect(() => {
-    if (!chartRef.current) return;
+    if (!chartRef.current || chartRef.current.clientWidth === 0) return;
 
     if (!instanceRef.current) {
       instanceRef.current = echarts.init(chartRef.current);

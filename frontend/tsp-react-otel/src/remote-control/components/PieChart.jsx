@@ -16,7 +16,7 @@ export default function PieChart({ title, data, height = 220 }) {
   const instanceRef = useRef(null);
 
   useEffect(() => {
-    if (!chartRef.current || !data || data.length === 0) return;
+    if (!chartRef.current || !data || data.length === 0 || chartRef.current.clientWidth === 0) return;
     if (!instanceRef.current) {
       instanceRef.current = echarts.init(chartRef.current);
     }
