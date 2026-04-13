@@ -9,7 +9,8 @@ export default defineConfig({
     proxy: {
       '/biz':        { target: 'http://172.25.100.136:8000', changeOrigin: true },
       '/core':       { target: 'http://172.25.100.136:8000', changeOrigin: true },
-      '/v1/traces':  { target: 'http://106.14.92.45:14318', changeOrigin: true },
+      '/monitor':    { target: 'http://172.25.100.136:8000', changeOrigin: true },// ★ tsp-monitor-gateway API 代理
+      '/v1/traces':  { target: 'http://172.25.100.136:4318', changeOrigin: true },
       // '/biz':        { target: 'http://localhost:8091', changeOrigin: true },
       // '/core':       { target: 'http://localhost:8092', changeOrigin: true },
       // '/v1/traces':  { target: 'http://localhost:4318', changeOrigin: true },
@@ -26,12 +27,7 @@ export default defineConfig({
         target: 'http://106.14.92.45:30088/api/v1/tracing',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/apm/, ''),
-      },
-      // ★ tsp-monitor-gateway API 代理
-      '/monitor': {
-        target: 'http://172.25.100.136:8000',
-        changeOrigin: true,
-      },
+      }
     },
   },
 })
