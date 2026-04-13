@@ -15,35 +15,41 @@ import { fetchTopology, searchTraceIds, fetchTraceDetail } from '../clickhouse/a
 
 // ── 常量（与 TopologyView 保持一致）────────────────────────────
 
-const NODE_COLORS = {
-  'tsp-react-frontend': '#4da6ff',
-  'apm-otel.tsp-react-frontend.test': '#4da6ff',
-  'kong-gateway':       '#ff8c42',
-  'tsp-trace-service1': '#00ff88',
-  'tsp-trace-service2': '#b06aff',
-  'tsp-service1':       '#00ff88',
-  'tsp-service2':       '#b06aff',
-  'tsp-java-service-1': '#00ff88',
-  'tsp-java-service-2': '#b06aff',
+// 已知中间件/基础设施的固定颜色（这些颜色有行业惯例）
+const KNOWN_COLORS = {
   'MySQL':  '#f97316',
   'Redis':  '#ef4444',
   'Kafka':  '#eab308',
   'PostgreSQL': '#336791',
   'MongoDB': '#47a248',
-  default:  '#94a8c0',
+  'RabbitMQ': '#ff6600',
+  'Elasticsearch': '#fed10a',
 };
 const NODE_ICONS = {
   'MySQL': '🗄', 'Redis': '⚡', 'Kafka': '📨',
   'PostgreSQL': '🗄', 'MongoDB': '🗄',
-  'kong-gateway': '🔀', 'tsp-react-frontend': '🌐',
+  'kong-gateway': '🔀', 'gateway': '🔀', 'nginx': '🔀', 'traefik': '🔀', 'envoy': '🔀',
   default: '⚙',
 };
-const MIDDLEWARE = ['MySQL', 'Redis', 'Kafka', 'PostgreSQL', 'MongoDB', 'RabbitMQ', 'Elasticsearch'];
+const MIDDLEWARE = Object.keys(KNOWN_COLORS);
 const NODE_R = 34;
+
+// 根据服务名哈希自动生成颜色（同一名称始终生成相同颜色）
+function hashColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = name.charCodeAt(i) + ((h << 5) - h);
+    h = h & h;
+  }
+  const hue = Math.abs(h) % 360;
+  const sat = 65 + (Math.abs(h >> 8) % 20);   // 65-85%
+  const light = 55 + (Math.abs(h >> 16) % 15); // 55-70%
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
 
 function getColor(n) {
   const serviceName = n.includes(':') ? n.split(':')[0].trim() : n;
-  return NODE_COLORS[serviceName] || NODE_COLORS.default;
+  return KNOWN_COLORS[serviceName] || hashColor(serviceName);
 }
 function getIcon(n) {
   const serviceName = n.includes(':') ? n.split(':')[0].trim() : n;

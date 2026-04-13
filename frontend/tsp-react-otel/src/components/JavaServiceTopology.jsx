@@ -30,20 +30,31 @@ const LOOKBACK_OPTS = [
   { label: '24小时', value: 86400000 },
 ];
 
-// 服务颜色映射
-const SERVICE_COLORS = {
-  'kong-gateway': '#ff8800',
-  'kong': '#ff8800',
-  'user-service': '#00ff88',
-  'order-service': '#4da6ff',
-  'product-service': '#b06aff',
-  'payment-service': '#ff4757',
-  'default': '#00d4ff',
+// 已知中间件/基础设施的固定颜色
+const KNOWN_COLORS = {
+  'MySQL':  '#f97316',
+  'Redis':  '#ef4444',
+  'Kafka':  '#eab308',
+  'PostgreSQL': '#336791',
+  'MongoDB': '#47a248',
 };
+
+// 根据服务名哈希自动生成颜色（同一名称始终生成相同颜色）
+function hashColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = name.charCodeAt(i) + ((h << 5) - h);
+    h = h & h;
+  }
+  const hue = Math.abs(h) % 360;
+  const sat = 65 + (Math.abs(h >> 8) % 20);   // 65-85%
+  const light = 55 + (Math.abs(h >> 16) % 15); // 55-70%
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
 
 function getServiceColor(serviceName) {
   const name = serviceName.split(':')[0]?.trim() || serviceName;
-  return SERVICE_COLORS[name] || SERVICE_COLORS.default;
+  return KNOWN_COLORS[name] || hashColor(name);
 }
 
 // ── 数据提取函数 ────────────────────────────────────────────────────

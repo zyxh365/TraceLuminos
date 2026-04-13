@@ -2,34 +2,45 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchServices, fetchDependencies, fetchTraces, fetchTrace, searchTraces as jaegerSearchTraces, extractVinFromTrace } from '../jaegerApi.js';
 import { huaweiCloudAPM } from '../huaweicloud/apmApi.js';
 
-const NODE_COLORS = {
-  'tsp-react-frontend': '#4da6ff',
-  'kong-gateway':       '#ff8c42',
-  'tsp-trace-service1': '#00ff88',
-  'tsp-trace-service2': '#b06aff',
-  'tsp-service1':       '#00ff88',
-  'tsp-service2':       '#b06aff',
+// 已知中间件/基础设施的固定颜色（这些颜色有行业惯例）
+const KNOWN_COLORS = {
   'MySQL':  '#f97316',
   'Redis':  '#ef4444',
   'Kafka':  '#eab308',
-  default:  '#94a8c0',
+  'PostgreSQL': '#336791',
+  'MongoDB': '#47a248',
+  'RabbitMQ': '#ff6600',
+  'Elasticsearch': '#fed10a',
 };
 const NODE_ICONS = {
   'MySQL': '🗄', 'Redis': '⚡', 'Kafka': '📨',
-  'kong-gateway': '🔀', 'tsp-react-frontend': '🌐', default: '⚙',
+  'PostgreSQL': '🗄', 'MongoDB': '🗄',
+  'kong-gateway': '🔀', 'gateway': '🔀', 'nginx': '🔀', 'traefik': '🔀', 'envoy': '🔀',
+  default: '⚙',
 };
-const MIDDLEWARE = ['MySQL', 'Redis', 'Kafka'];
+const MIDDLEWARE = Object.keys(KNOWN_COLORS);
 
 // 📌 配置：默认合并的网关服务列表
-// 这些服务的多个端点节点会被合并为一个服务节点
 const DEFAULT_GATEWAY_SERVICES = ['kong-gateway', 'gateway', 'nginx', 'traefik', 'envoy'];
 
 const NODE_R = 34;
 
+// 根据服务名哈希自动生成颜色（同一名称始终生成相同颜色）
+function hashColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = name.charCodeAt(i) + ((h << 5) - h);
+    h = h & h;
+  }
+  const hue = Math.abs(h) % 360;
+  const sat = 65 + (Math.abs(h >> 8) % 20);   // 65-85%
+  const light = 55 + (Math.abs(h >> 16) % 15); // 55-70%
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
+
 function getColor(n) {
-  // 如果是端点视图（包含冒号），提取服务名部分
   const serviceName = n.includes(':') ? n.split(':')[0].trim() : n;
-  return NODE_COLORS[serviceName] || NODE_COLORS.default;
+  return KNOWN_COLORS[serviceName] || hashColor(serviceName);
 }
 function getIcon(n) {
   // 如果是端点视图（包含冒号），提取服务名部分
