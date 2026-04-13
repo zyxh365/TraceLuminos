@@ -827,7 +827,7 @@ export default function JavaServiceTopology() {
           >
             <defs>
               {/* 箭头标记 */}
-              {Object.values(SERVICE_COLORS).filter((v, i, a) => a.indexOf(v) === i).map(color => (
+              {[...new Set([...Object.values(KNOWN_COLORS), ...graphData.edges.map(e => getServiceColor(e.source)), ...graphData.edges.map(e => getServiceColor(e.target))])].map(color => (
                 <marker
                   key={color}
                   id={'arr-' + color.replace('#', '')}
@@ -1234,16 +1234,7 @@ function SpanTree({ trace, fmtDuration }) {
 
   // 获取服务颜色
   const getServiceColor = (serviceName) => {
-    const SERVICE_COLORS = {
-      'kong-gateway': '#ff8800',
-      'kong': '#ff8800',
-      'user-service': '#00ff88',
-      'order-service': '#4da6ff',
-      'product-service': '#b06aff',
-      'payment-service': '#ff4757',
-      'default': '#00d4ff',
-    };
-    return SERVICE_COLORS[serviceName] || SERVICE_COLORS.default;
+    return KNOWN_COLORS[serviceName] || hashColor(serviceName);
   };
 
   function renderSpan(sid, depth) {

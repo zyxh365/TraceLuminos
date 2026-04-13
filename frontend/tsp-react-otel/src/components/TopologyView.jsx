@@ -1407,8 +1407,8 @@ export default function TopologyView() {
 
           <svg ref={svgRef} width={svgSize.w} height={svgSize.h} style={{ display: 'block', userSelect: 'none', cursor: isDragging ? 'grabbing' : 'default' }}>
             <defs>
-              {Object.values(NODE_COLORS).filter((v,i,a)=>a.indexOf(v)===i).map(color => (
-                <marker key={color} id={'arr-'+color.replace('#','')} markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              {[...new Set(nodes.map(n => getColor(n.id || n.name)))].map(color => (
+                <marker key={color} id={'arr-'+color.replace(/[^a-z0-9]/gi,'')} markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
                   <path d="M0,0 L0,6 L7,3 z" fill={color} opacity="0.5" />
                 </marker>
               ))}

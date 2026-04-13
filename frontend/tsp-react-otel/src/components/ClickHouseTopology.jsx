@@ -516,7 +516,7 @@ export default function ClickHouseTopology() {
   ];
 
   // 全局唯一颜色（箭头 marker 用）
-  const uniqueColors = [...new Set([...Object.values(NODE_COLORS), ...edges.map(e => getColor(e.source))])];
+  const uniqueColors = [...new Set([...Object.values(KNOWN_COLORS), ...edges.map(e => getColor(e.source)), ...edges.map(e => getColor(e.target))])];
 
   return (
     <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', height: '100%', position: 'relative' }}>
