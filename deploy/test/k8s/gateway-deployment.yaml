@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsp-monitor-gateway
+  namespace: tsp-observability
+  labels:
+    app: tsp-monitor-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tsp-monitor-gateway
+  template:
+    metadata:
+      labels:
+        app: tsp-monitor-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: <镜像仓库地址>/tsp-monitor-gateway:1.0.0
+          ports:
+            - containerPort: 8085
+              name: http
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "test"
+            - name: CLICKHOUSE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: tsp-infra-env
+                  key: CLICKHOUSE_HOST
+            - name: CLICKHOUSE_HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: tsp-infra-env
+                  key: CLICKHOUSE_HTTP_PORT
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: tsp-infra-env
+                  key: CLICKHOUSE_USER
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: tsp-infra-env
+                  key: CLICKHOUSE_PASSWORD
+            - name: JAVA_OPTS
+              value: "-Xms512m -Xmx1024m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: tsp-gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tsp-monitor-gateway
+  namespace: tsp-observability
+  labels:
+    app: tsp-monitor-gateway
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+      protocol: TCP
+      nodePort: 30085
+  selector:
+    app: tsp-monitor-gateway

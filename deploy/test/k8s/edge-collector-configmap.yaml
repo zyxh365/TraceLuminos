@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-edge-config
+  namespace: tsp-observability
+data:
+  config.yaml: |
+    # ═══════════════════════════════════════════════════════════════
+    # TSP Edge Collector 配置（对齐生产环境）
+    # 版本: otel/opentelemetry-collector-contrib:v0.149.0
+    # Kafka: 华为云 DMS Kafka 3.x
+    # ═══════════════════════════════════════════════════════════════
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+            cors:
+              allowed_origins: ["*"]
+
+    processors:
+      # ── 内存控制（防 OOM）────────────────────────────────────
+      batch:
+        timeout: 5s
+        send_batch_size: 2048
+
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 1500
+        spike_limit_mib: 512
+
+      # ── 过滤 Kong 内部 Span（非业务链路，噪音）────────────
+      filter/kong_internal:
+        error_mode: ignore
+        traces:
+          span:
+            - 'name == "kong.router"'
+            - 'name == "kong.access.plugin.opentelemetry"'
+            - 'name == "kong.header_filter.plugin.opentelemetry"'
+
+      # ── Span 属性变换 ────────────────────────────────────────
+      # 1. peer.service 映射：拓扑图需要识别中间件节点
+      # 2. Baggage 字段标准化：加上 baggage. 前缀，便于 Central 映射为 biz.*
+      # 3. Resource 属性注入：biz.system / env（配置写死）
+      transform/traces:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              # kind 数值：2=SERVER 3=CLIENT 4=PRODUCER 5=CONSUMER
+              - 'set(attributes["peer.service"], "MySQL") where attributes["db.system"] == "mysql" and kind == 3'
+              - 'set(attributes["peer.service"], "Redis") where attributes["db.system"] == "redis" and kind == 3'
+              - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 4'
+              - 'set(attributes["peer.service"], "Kafka") where attributes["messaging.system"] == "kafka" and kind == 5'
+              # Baggage 字段加前缀（Central 会映射为 biz.*）
+              - 'set(attributes["baggage.userId"],      attributes["userId"])      where attributes["userId"] != nil'
+              - 'set(attributes["baggage.vin"],         attributes["vin"])         where attributes["vin"] != nil'
+              - 'set(attributes["baggage.tenantId"],    attributes["tenantId"])    where attributes["tenantId"] != nil'
+              - 'set(attributes["baggage.platform"],    attributes["platform"])    where attributes["platform"] != nil'
+              - 'set(attributes["baggage.commandType"], attributes["commandType"]) where attributes["commandType"] != nil'
+              - 'set(attributes["baggage.channel"],     attributes["channel"])     where attributes["channel"] != nil'
+              - 'set(attributes["baggage.brand"],       attributes["brand"])       where attributes["brand"] != nil'
+          - context: resource
+            statements:
+              # 多维字段：Edge 写死注入（Central 通过 MV 写入 ClickHouse biz_system / env 列）
+              - 'set(attributes["biz.system"], "${BIZ_SYSTEM}")'
+              - 'set(attributes["env"], "${DEPLOY_ENV}")'
+
+    exporters:
+      # ── Traces → Kafka tsp-spans ──────────────────────────────
+      kafka/traces:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topic: tsp-spans
+        encoding: otlp_proto
+        # 华为云 DMS Kafka SASL 认证
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        # Kafka 3.x 安全配置
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+        # 发送队列（生产级配置）
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 5000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+
+      # ── Metrics → Kafka tsp-metrics ──────────────────────────
+      kafka/metrics:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topic: tsp-metrics
+        encoding: otlp_proto
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 2000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+
+      # ── Logs → Kafka tsp-logs ────────────────────────────────
+      kafka/logs:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topic: tsp-logs
+        encoding: otlp_proto
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/kong_internal, transform/traces, batch]
+          exporters: [kafka/traces]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [kafka/metrics]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [kafka/logs]

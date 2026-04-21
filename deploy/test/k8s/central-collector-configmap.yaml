@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-central-config
+  namespace: tsp-observability
+data:
+  config.yaml: |
+    # ═══════════════════════════════════════════════════════════════
+    # TSP Central Collector 配置（对齐生产环境）
+    # 版本: otel/opentelemetry-collector-contrib:v0.149.0
+    # Kafka: 华为云 DMS Kafka 3.x
+    # ═══════════════════════════════════════════════════════════════
+
+    receivers:
+      # ── Traces（从 Kafka tsp-spans 消费）─────────────────────
+      kafka/traces:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topics: [tsp-spans]
+        encoding: otlp_proto
+        initial_offset: latest
+        group_id: central-traces-consumer
+        # 华为云 DMS Kafka SASL 认证
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+
+      # ── Metrics（从 Kafka tsp-metrics 消费）───────────────────
+      kafka/metrics:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topics: [tsp-metrics]
+        encoding: otlp_proto
+        initial_offset: latest
+        group_id: central-metrics-consumer
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+
+    processors:
+      # ── 内存控制 ─────────────────────────────────────────────
+      batch:
+        timeout: 5s
+        send_batch_size: 2048
+
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 1500
+        spike_limit_mib: 512
+
+      # ── 属性映射：Baggage + OTel 标准属性 → TSP 业务字段 ──
+      transform/traces:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              # Baggage → biz.* 业务字段映射
+              - set(attributes["biz.vin"], attributes["baggage.vin"]) where attributes["baggage.vin"] != nil
+              - set(attributes["biz.user_id"], attributes["baggage.userId"]) where attributes["baggage.userId"] != nil
+              - set(attributes["biz.tenant"], attributes["baggage.tenantId"]) where attributes["baggage.tenantId"] != nil
+              - set(attributes["biz.platform"], attributes["baggage.platform"]) where attributes["baggage.platform"] != nil
+              - set(attributes["biz.command_type"], attributes["baggage.commandType"]) where attributes["baggage.commandType"] != nil
+              - set(attributes["biz.channel"], attributes["baggage.channel"]) where attributes["baggage.channel"] != nil
+              - set(attributes["biz.brand"], attributes["baggage.brand"]) where attributes["baggage.brand"] != nil
+              # 部署环境标识（兼容保留）
+              - set(attributes["deploy.env"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+              # 标记根 Span（链路汇总视图依赖）
+              - set(attributes["is_root"], "1") where parent_span_id == ""
+
+    exporters:
+      # ── Traces → ClickHouse（通过 clickhouseexporter 写入标准表）──
+      # clickhouseexporter 写入 otel.otel_traces（标准 OTel 格式）
+      # 通过 ClickHouse MV 自动桥接到 platform.tsp_spans（业务表）
+      clickhouse:
+        endpoint: tcp://${CLICKHOUSE_HOST}:${CLICKHOUSE_NATIVE_PORT}
+        database: "${CLICKHOUSE_DATABASE}"
+        # ClickHouse TLS（华为云 CloudTable 如开启 TLS 则需配置）
+        tls:
+          insecure: ${CLICKHOUSE_ENABLE_TLS}
+          insecure_skip_verify: ${CLICKHOUSE_ENABLE_TLS}
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+      # ── Metrics → VictoriaMetrics（Prometheus Remote Write）──
+      prometheusremotewrite/vm:
+        endpoint: http://victoriametrics:8428/api/v1/write
+        resource_to_telemetry_conversion:
+          enabled: true
+
+      # ── Span Events → Kafka tsp-events（供 Flink 实时消费）──
+      kafka/events:
+        brokers: ["${KAFKA_BOOTSTRAP_SERVERS}"]
+        topic: tsp-events
+        encoding: otlp_proto
+        authentication:
+          sasl:
+            mechanism: "${KAFKA_SASL_MECHANISM}"
+            username: "${KAFKA_SASL_USERNAME}"
+            password: "${KAFKA_SASL_PASSWORD}"
+        sasl:
+          insecure: true
+        security:
+          protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          insecure: "${KAFKA_ENABLE_TLS}"
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [kafka/traces]
+          processors: [memory_limiter, transform/traces, batch]
+          exporters: [clickhouse]
+        metrics:
+          receivers: [kafka/metrics]
+          processors: [memory_limiter, batch]
+          exporters: [prometheusremotewrite/vm]
+      telemetry:
+        logs:
+          level: warn

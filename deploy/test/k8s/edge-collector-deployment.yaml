@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-edge
+  namespace: tsp-observability
+  labels:
+    app: otel-edge
+    component: edge-collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: otel-edge
+  template:
+    metadata:
+      labels:
+        app: otel-edge
+        component: edge-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:v0.149.0
+          args: ["--config=/etc/otelcol/config.yaml"]
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: tsp-infra-env
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            # ── 多维字段：Edge 写死注入 ──
+            - name: BIZ_SYSTEM
+              value: "NTSP"
+            - name: DEPLOY_ENV
+              value: "test"
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 13133
+              name: health
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+      volumes:
+        - name: config
+          configMap:
+            name: otel-edge-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-edge
+  namespace: tsp-observability
+  labels:
+    app: otel-edge
+spec:
+  type: LoadBalancer
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  selector:
+    app: otel-edge

@@ -69,16 +69,6 @@ tsp-monitor-gateway
 在 `application.yml` 中配置相关参数：
 
 ```yaml
-# 华为云 APM 配置
-huaweicloud:
-  apm:
-    enabled: true
-    endpoint: https://apm.cn-north-4.myhuaweicloud.com
-    access-key: ${HUAWEIFCLOUD_APM_ACCESS_KEY:}
-    secret-key: ${HUAWEIFCLOUD_APM_SECRET_KEY:}
-    project-id: ${HUAWEIFCLOUD_APM_PROJECT_ID:}
-    region: cn-north-4
-
 # ClickHouse 配置
 clickhouse:
   url: jdbc:clickhouse://localhost:8123/default
@@ -101,13 +91,13 @@ java -jar target/tsp-monitor-gateway-1.0.0.jar
 
 ## API 接口说明
 
-### APM 接口
+### ~~APM 接口~~
 
-- `GET /monitor/apm/applications` - 获取应用列表
-- `GET /monitor/apm/applications/{applicationId}/overview` - 获取应用概览数据
-- `POST /monitor/apm/applications/{applicationId}/metrics` - 获取应用指标数据
-- `GET /monitor/apm/applications/{applicationId}/topology` - 获取拓扑图数据
-- `GET /monitor/apm/applications/{applicationId}/realtime` - 获取实时监控数据
+- ~~`GET /monitor/apm/applications` - 获取应用列表~~
+- ~~`GET /monitor/apm/applications/{applicationId}/overview` - 获取应用概览数据~~
+- ~~`POST /monitor/apm/applications/{applicationId}/metrics` - 获取应用指标数据~~
+- ~~`GET /monitor/apm/applications/{applicationId}/topology` - 获取拓扑图数据~~
+- ~~`GET /monitor/apm/applications/{applicationId}/realtime` - 获取实时监控数据~~
 
 ### Analysis 接口
 

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsp-gateway-config
+  namespace: tsp-observability
+  labels:
+    app: tsp-monitor-gateway
+data:
+  application-test.yml: |
+    server:
+      port: 8085
+
+    spring:
+      datasource:
+        clickhouse:
+          url: jdbc:clickhouse://${CLICKHOUSE_HOST}:${CLICKHOUSE_HTTP_PORT}/platform
+          username: ${CLICKHOUSE_USER}
+          password: ${CLICKHOUSE_PASSWORD}
+          driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+
+    # VictoriaMetrics 地址（集群内 Service DNS）
+    victoria-metrics:
+      endpoint: http://victoriametrics.tsp-observability:8428
+
+    # 管理端点
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus
+      endpoint:
+        health:
+          show-details: always

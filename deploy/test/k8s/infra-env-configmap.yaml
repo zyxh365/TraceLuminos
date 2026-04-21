@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsp-infra-env
+  namespace: tsp-observability
+data:
+  # ── 华为云 Kafka（DMS） ──────────────────────────────
+  # 替换为华为云 DMS Kafka 实例的接入地址（内网建议地址）
+  # 多节点用逗号分隔
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-xxx.dms.huaweicloud.com:9092,kafka-yyy.dms.huaweicloud.com:9092"
+
+  # Kafka SASL 认证（华为云 DMS 默认开启，在华为云 DMS 控制台的"实例详情 > 用户"中查看）
+  # 如果 DMS 未开启 SASL 认证，将 KAFKA_SASL_USERNAME 和 KAFKA_SASL_PASSWORD 置空即可
+  KAFKA_SASL_USERNAME: ""
+  KAFKA_SASL_PASSWORD: ""
+
+  # Kafka 安全协议（华为云 DMS Kafka 默认使用 SASL_PLAIN over TLS）
+  # 可选值：PLAINTEXT / SASL_PLAIN / SASL_SSL
+  # PLAINTEXT: 无认证
+  # SASL_PLAIN: SASL 认证，明文传输（内网 VPC 内使用）
+  # SASL_SSL: SASL 认证 + TLS 加密（公网环境使用）
+  KAFKA_SECURITY_PROTOCOL: "SASL_PLAIN"
+
+  # Kafka SASL 机制
+  KAFKA_SASL_MECHANISM: "PLAIN"
+
+  # Kafka TLS（SASL_SSL 时需开启）
+  KAFKA_ENABLE_TLS: "false"
+
+  # ── 华为云 ClickHouse（CloudTable） ───────────────────
+  # 替换为华为云 ClickHouse 实例的内网地址
+  CLICKHOUSE_HOST: "clickhouse-xxx.cloudtable.huaweicloud.com"
+  CLICKHOUSE_NATIVE_PORT: "9000"
+  CLICKHOUSE_HTTP_PORT: "8123"
+  CLICKHOUSE_USER: "default"
+  CLICKHOUSE_PASSWORD: ""
+  CLICKHOUSE_DATABASE: "otel"
+
+  # ClickHouse TLS（华为云 CloudTable 默认关闭，如开启改为 true）
+  CLICKHOUSE_ENABLE_TLS: "false"

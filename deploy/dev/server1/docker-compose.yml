@@ -1,0 +1,194 @@
+# TSP 可观测性平台 - Server 1 配置
+# 版本：v4.0（自研版，摒弃 SigNoz）
+# 架构：HAProxy → Edge Collector → Kafka → Central Collector → ClickHouse/VictoriaMetrics
+
+networks:
+  tsp:
+    driver: bridge
+
+volumes:
+  ch-data:
+  ch-logs:
+  kafka-data:
+  vm-data:
+
+services:
+
+  # ── ClickHouse 24.3 LTS ──────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3.12.75-alpine
+    container_name: tsp-clickhouse
+    hostname: clickhouse
+    networks: [tsp]
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ch-logs:/var/log/clickhouse-server
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/tsp.xml:ro,z
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/tsp.xml:ro,z
+      - ./clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml:ro,z
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    deploy:
+      resources:
+        limits: { cpus: "4", memory: 8g }
+    restart: unless-stopped
+
+  # ── Kafka 3.8 KRaft 模式（无需 Zookeeper）────────────────────
+  kafka:
+    image: bitnami/kafka:3.8.0
+    container_name: tsp-kafka
+    networks: [tsp]
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://${SERVER1_IP}:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: 6
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_CFG_LOG_RETENTION_HOURS: 24
+      KAFKA_HEAP_OPTS: "-Xmx1g -Xms512m"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1500m }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── HAProxy（Edge Collector 负载均衡）────────────────────────
+  haproxy:
+    image: haproxy:2.8
+    container_name: tsp-haproxy
+    networks: [tsp]
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "8404:8404"  # Stats 监控页
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro,z
+    depends_on:
+      kafka:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+    restart: unless-stopped
+
+  # ── Edge Collector（2 实例，接收 OTLP 数据写入 Kafka）──────────
+  otel-edge-1:
+    image: otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-otel-edge-1
+    networks: [tsp]
+    ports:
+      - "13133:13133"  # 健康检查
+    volumes:
+      - ./otel-edge/config.yaml:/etc/otel/config.yaml:ro,z
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["--config=/etc/otel/config.yaml"]
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+    restart: unless-stopped
+
+  otel-edge-2:
+    image: otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-otel-edge-2
+    networks: [tsp]
+    volumes:
+      - ./otel-edge/config.yaml:/etc/otel/config.yaml:ro,z
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["--config=/etc/otel/config.yaml"]
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+    restart: unless-stopped
+
+  # ── Central Collector（2 实例，消费 Kafka 写入 ClickHouse/VM）────
+  otel-central-1:
+    image: otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-otel-central-1
+    networks: [tsp]
+    ports:
+      - "13134:13133"  # 健康检查（映射到宿主机 13134 避免冲突）
+    volumes:
+      - ./otel-central/config.yaml:/etc/otel/config.yaml:ro,z
+    depends_on:
+      kafka:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      victoriametrics:
+        condition: service_started
+    command: ["--config=/etc/otel/config.yaml"]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1500m }
+    restart: unless-stopped
+
+  otel-central-2:
+    image: otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-otel-central-2
+    networks: [tsp]
+    volumes:
+      - ./otel-central/config.yaml:/etc/otel/config.yaml:ro,z
+    depends_on:
+      kafka:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      victoriametrics:
+        condition: service_started
+    command: ["--config=/etc/otel/config.yaml"]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1500m }
+    restart: unless-stopped
+
+  # ── VictoriaMetrics（Metrics 独立存储）───────────────────────
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.139.0
+    container_name: tsp-victoriametrics
+    networks: [tsp]
+    ports:
+      - "8428:8428"  # Ingest + Query API + VMui
+    volumes:
+      - vm-data:/victoria-metrics-data
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--retentionPeriod=90d"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 2g }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8428/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── VMui 已内置在 VictoriaMetrics 中 ─────────────────────────
+  # 访问地址：http://<SERVER1_IP>:8428/vmui（无需单独部署）
+
+  # ── tsp-monitor-gateway 已迁移到 Server2 ──────────────────────
+  # Server1 专注数据采集与存储（ClickHouse/Kafka/VictoriaMetrics/Collector）
+  # tsp-monitor-gateway + React 前端看板部署在 Server2，通过 Kong 统一入口访问

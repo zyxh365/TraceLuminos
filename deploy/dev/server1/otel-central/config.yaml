@@ -1,0 +1,85 @@
+receivers:
+  kafka/traces:
+    brokers: ["kafka:9092"]
+    initial_offset: latest
+    group_id: central-traces-consumer
+    traces:
+      topics: ["tsp-traces"]
+      encoding: otlp_proto
+    message_marking:
+      after: true
+
+  kafka/metrics:
+    brokers: ["kafka:9092"]
+    initial_offset: latest
+    group_id: central-metrics-consumer
+    metrics:
+      topics: ["tsp-metrics"]
+      encoding: otlp_proto
+
+  kafka/logs:
+    brokers: ["kafka:9092"]
+    initial_offset: latest
+    group_id: central-logs-consumer
+    logs:
+      topics: ["tsp-logs"]
+      encoding: otlp_proto
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 2048
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1500
+    spike_limit_mib: 512
+
+  # Baggage → biz.* 字段映射
+  transform/traces:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["biz.vin"], attributes["baggage.vin"]) where attributes["baggage.vin"] != nil
+          - set(attributes["biz.user_id"], attributes["baggage.userId"]) where attributes["baggage.userId"] != nil
+          - set(attributes["biz.tenant_id"], attributes["baggage.tenantId"]) where attributes["baggage.tenantId"] != nil
+          - set(attributes["biz.platform"], attributes["baggage.platform"]) where attributes["baggage.platform"] != nil
+          - set(attributes["biz.command_type"], attributes["baggage.commandType"]) where attributes["baggage.commandType"] != nil
+          - set(attributes["deploy.env"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+          - set(attributes["is_root"], "1") where parent_span_id == ""
+
+exporters:
+  clickhouse:
+    endpoint: tcp://clickhouse:9000
+    database: otel
+    # clickhouseexporter 使用固定表结构 otel_traces，
+    # 通过 ClickHouse MV 自动桥接到 platform.tsp_spans（见 01_init_database.sql）
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  prometheusremotewrite/vm:
+    endpoint: http://victoriametrics:8428/api/v1/write
+    resource_to_telemetry_conversion:
+      enabled: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [kafka/traces]
+      processors: [memory_limiter, transform/traces, batch]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [kafka/metrics]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite/vm]
+  telemetry:
+    logs:
+      level: warn
