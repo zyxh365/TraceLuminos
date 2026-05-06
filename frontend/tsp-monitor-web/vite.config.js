@@ -7,7 +7,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     proxy: {
-      '/monitor': { target: 'http://172.25.100.136:8085', changeOrigin: true },
+      '/biz':     { target: 'http://172.25.100.136:8000', changeOrigin: true },
+      '/core':    { target: 'http://172.25.100.136:8000', changeOrigin: true },
+      '/monitor': { target: 'http://172.25.100.136:8000', changeOrigin: true },
     },
   },
 })
