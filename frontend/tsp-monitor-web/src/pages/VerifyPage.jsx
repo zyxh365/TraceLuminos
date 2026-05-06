@@ -16,7 +16,14 @@ export default function VerifyPage() {
   const [logs, setLogs] = useState([]);
   const [running, setRunning] = useState(null);
   const [baggageState, setBaggageState] = useState({
-    userId: 'user-001', vin: 'VIN-TEST-001', tenantId: 'tsp-test', platform: 'h5',
+    'biz.user_id': 'user-001',
+    'biz.vin': 'VIN-TEST-001',
+    'biz.platform': 'h5',
+    'biz.app_version': '1.0.0',
+    'biz.system': 'NTSP',
+    'biz.channel': 'chery-app',
+    'biz.brand': 'chery',
+    'biz.tenant': 'tsp-test',
   });
 
   const addLog = useCallback((entry) => {
@@ -43,13 +50,13 @@ export default function VerifyPage() {
 
   const runRestTemplate = useCallback(() =>
     runScenario('RestTemplate', async () => {
-      const data = await apiFetch('/biz/rest/command', { method: 'POST', body: JSON.stringify({ vin: baggageState.vin, commandType: 'AC_ON' }) });
+      const data = await apiFetch('/biz/rest/command', { method: 'POST', body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'AC_ON' }) });
       return { raw: data };
     }), [runScenario, baggageState]);
 
   const runFeign = useCallback(() =>
     runScenario('OpenFeign', async () => {
-      const data = await apiFetch('/biz/feign/command', { method: 'POST', body: JSON.stringify({ vin: baggageState.vin, commandType: 'LOCK' }) });
+      const data = await apiFetch('/biz/feign/command', { method: 'POST', body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'LOCK' }) });
       return { raw: data };
     }), [runScenario, baggageState]);
 
@@ -72,15 +79,15 @@ export default function VerifyPage() {
           num="01" title="RestTemplate" color="#00ff88"
           subtitle="service1 → service2，baggage 自动透传"
           endpoint="POST /biz/rest/command"
-          body={'{ "vin": "' + baggageState.vin + '", "commandType": "AC_ON" }'}
-          points={['请求 Header 包含 traceparent + baggage', 'Span Attributes 包含 baggage.userId 等字段', 'traceId 贯穿整条链路']}
+          body={'{ "vin": "' + baggageState['biz.vin'] + '", "commandType": "AC_ON" }'}
+          points={['请求 Header 包含 traceparent + baggage', 'Span Attributes 包含 biz.user_id 等字段', 'traceId 贯穿整条链路']}
           running={running === 'RestTemplate'} onRun={runRestTemplate}
         />
         <ScenarioPanel
           num="02" title="OpenFeign" color="#4da6ff"
           subtitle="Feign 出站请求自动携带 baggage"
           endpoint="POST /biz/feign/command"
-          body={'{ "vin": "' + baggageState.vin + '", "commandType": "LOCK" }'}
+          body={'{ "vin": "' + baggageState['biz.vin'] + '", "commandType": "LOCK" }'}
           points={['效果和 RestTemplate 完全一致', 'Agent 对两种客户端插桩相同', 'baggage 透传到 service2']}
           running={running === 'OpenFeign'} onRun={runFeign}
         />
