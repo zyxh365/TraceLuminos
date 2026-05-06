@@ -13,6 +13,17 @@ export default function BaggagePanel({ baggage, onApply }) {
     setTimeout(() => setApplied(false), 2000);
   };
 
+  const fieldDefs = [
+    { key: 'biz.user_id',     label: 'biz.user_id',     placeholder: '用户ID' },
+    { key: 'biz.vin',         label: 'biz.vin',         placeholder: '车辆VIN' },
+    { key: 'biz.platform',    label: 'biz.platform',    placeholder: 'h5/android/ios/web/tbox' },
+    { key: 'biz.app_version', label: 'biz.app_version', placeholder: 'APP版本号' },
+    { key: 'biz.system',      label: 'biz.system',      placeholder: 'NTSP / STSP' },
+    { key: 'biz.channel',     label: 'biz.channel',     placeholder: 'chery-app / jetour-app' },
+    { key: 'biz.brand',       label: 'biz.brand',       placeholder: 'chery / jetour / icar' },
+    { key: 'biz.tenant',      label: 'biz.tenant',      placeholder: '租户标识' },
+  ];
+
   return (
     <div style={{
       background: 'rgba(13,21,32,0.9)',
@@ -41,12 +52,7 @@ export default function BaggagePanel({ baggage, onApply }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr) auto', gap: 10, alignItems: 'end' }}>
-        {[
-          { key: 'userId', label: 'userId', placeholder: '用户ID' },
-          { key: 'vin', label: 'vin', placeholder: '车辆VIN' },
-          { key: 'tenantId', label: 'tenantId', placeholder: '租户ID' },
-          { key: 'platform', label: 'platform', placeholder: 'h5/android/ios' },
-        ].map(({ key, label, placeholder }) => (
+        {fieldDefs.map(({ key, label, placeholder }) => (
           <div key={key}>
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#5a7090', marginBottom: 4 }}>{label}</div>
             <input value={fields[key] || ''} onChange={e => setFields(prev => ({ ...prev, [key]: e.target.value }))}
