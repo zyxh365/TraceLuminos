@@ -48,17 +48,32 @@ export default function VerifyPage() {
     }
   }, [addLog]);
 
+  const buildBaggageHeader = useCallback(() =>
+    Object.entries(baggageState)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join(','),
+    [baggageState]);
+
   const runRestTemplate = useCallback(() =>
     runScenario('RestTemplate', async () => {
-      const data = await apiFetch('/biz/rest/command', { method: 'POST', body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'AC_ON' }) });
+      const data = await apiFetch('/biz/rest/command', {
+        method: 'POST',
+        headers: { 'baggage': buildBaggageHeader() },
+        body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'AC_ON' }),
+      });
       return { raw: data };
-    }), [runScenario, baggageState]);
+    }), [runScenario, baggageState, buildBaggageHeader]);
 
   const runFeign = useCallback(() =>
     runScenario('OpenFeign', async () => {
-      const data = await apiFetch('/biz/feign/command', { method: 'POST', body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'LOCK' }) });
+      const data = await apiFetch('/biz/feign/command', {
+        method: 'POST',
+        headers: { 'baggage': buildBaggageHeader() },
+        body: JSON.stringify({ vin: baggageState['biz.vin'], commandType: 'LOCK' }),
+      });
       return { raw: data };
-    }), [runScenario, baggageState]);
+    }), [runScenario, baggageState, buildBaggageHeader]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
