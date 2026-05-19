@@ -300,6 +300,9 @@ export default function ClickHouseTopology() {
       }
     });
 
+    // 检测是否存在缝合过的 span（linked_span_id 非空）
+    const hasStitchedSpan = spans.some(s => s.linked_span_id && s.linked_span_id !== '');
+
     const edges = Object.entries(edgeMap).map(([key, items]) => {
       const [source, target] = key.split('->');
       const total = items.length;
@@ -313,6 +316,21 @@ export default function ClickHouseTopology() {
         avgDuration: avgDur / 1000000, p99_duration_ms: 0,
       };
     });
+
+    // 缝合链路：在 service1 → service2 之间注入 TBox 黑盒节点
+    if (hasStitchedSpan) {
+      const svcEdges = edges.filter(e =>
+        e.source.includes('service') && e.target.includes('service') && e.source !== e.target);
+      svcEdges.forEach(e => {
+        const idx = edges.indexOf(e);
+        edges.splice(idx, 1);
+        const tboxId = 'TBox-' + e.source + '-' + e.target;
+        edges.push({ source: e.source, target: tboxId, protocol: 'tbox', callCount: 0, error_count: 0, avgDuration: 0, p99_duration_ms: 0, isTbox: true });
+        edges.push({ source: tboxId, target: e.target, protocol: 'tbox', callCount: 0, error_count: 0, avgDuration: 0, p99_duration_ms: 0, isTbox: true });
+        nodeSet.add(tboxId);
+      });
+    }
+
     return { nodes: [...nodeSet].map(id => ({ id })), edges };
   }, []);
 
