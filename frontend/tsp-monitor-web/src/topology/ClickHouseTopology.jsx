@@ -17,11 +17,13 @@ const KNOWN_COLORS = {
   'MongoDB': '#47a248',
   'RabbitMQ': '#ff6600',
   'Elasticsearch': '#fed10a',
+  'TBox':  '#9ca3af',
 };
 const NODE_ICONS = {
   'MySQL': '🗄', 'Redis': '⚡', 'Kafka': '📨',
   'PostgreSQL': '🗄', 'MongoDB': '🗄',
   'kong-gateway': '🔀', 'gateway': '🔀', 'nginx': '🔀', 'traefik': '🔀', 'envoy': '🔀',
+  'TBox': '📡',
   default: '⚙',
 };
 const MIDDLEWARE = Object.keys(KNOWN_COLORS);
@@ -250,6 +252,7 @@ export default function ClickHouseTopology() {
           error_count: Number(row.error_count) || 0,
           avgDuration: Number(row.avg_duration_ms) || 0,
           p99_duration_ms: Number(row.p99_duration_ms) || 0,
+          isTbox: row.is_tbox === true,
         });
       }
     });
@@ -534,12 +537,16 @@ export default function ClickHouseTopology() {
               const lineW = Math.min(4, 1.2 + (e.callCount || 0) * 0.3);
               const lx = (x1+x2)/2 - dy*0.06, ly = (y1+y2)/2 + dx*0.06;
               const isSelected = selectedNode && (e.source === selectedNode || e.target === selectedNode);
+              const isTboxEdge = e.isTbox === true;
+              const dashArray = isTboxEdge ? '6,4' : undefined;
+              const tboxLabel = isTboxEdge ? '' : label;
               return (
                 <g key={i}>
-                  <path d={`M${x1},${y1} Q${mx},${my} ${x2},${y2}`} fill="none" stroke={color} strokeWidth={lineW+3} strokeOpacity={isSelected ? 0.2 : 0.08} />
-                  <path d={`M${x1},${y1} Q${mx},${my} ${x2},${y2}`} fill="none" stroke={color} strokeWidth={lineW} strokeOpacity={isSelected ? 0.9 : 0.55} markerEnd={`url(#arr-ch-${color.replace('#','')})`} />
-                  <rect x={lx - label.length*3.2} y={ly-8} width={label.length*6.4} height={14} rx={3} fill="rgba(8,13,20,0.85)" stroke={color} strokeWidth={0.5} strokeOpacity={0.3} />
-                  <text x={lx} y={ly+1} textAnchor="middle" fill={color} fontSize="9" fontFamily="JetBrains Mono,monospace" opacity="0.9" fontWeight="500">{label}</text>
+                  <path d={`M${x1},${y1} Q${mx},${my} ${x2},${y2}`} fill="none" stroke={color} strokeWidth={lineW+3} strokeOpacity={isSelected ? 0.2 : 0.08} strokeDasharray={dashArray} />
+                  <path d={`M${x1},${y1} Q${mx},${my} ${x2},${y2}`} fill="none" stroke={color} strokeWidth={lineW} strokeOpacity={isSelected ? 0.9 : 0.55} markerEnd={`url(#arr-ch-${color.replace('#','')})`} strokeDasharray={dashArray} />
+                  {!isTboxEdge && (
+                    <><rect x={lx - label.length*3.2} y={ly-8} width={label.length*6.4} height={14} rx={3} fill="rgba(8,13,20,0.85)" stroke={color} strokeWidth={0.5} strokeOpacity={0.3} /><text x={lx} y={ly+1} textAnchor="middle" fill={color} fontSize="9" fontFamily="JetBrains Mono,monospace" opacity="0.9" fontWeight="500">{label}</text></>
+                  )}
                 </g>
               );
             })}
@@ -550,14 +557,16 @@ export default function ClickHouseTopology() {
               const icon = getIcon(node.id);
               const sel = selectedNode === node.id;
               const isMid = MIDDLEWARE.includes(node.id);
-              let displayLabel = node.id.length > 13 ? node.id.slice(0,12)+'…' : node.id;
+              const isTbox = node.id.startsWith('TBox');
+              let displayLabel = isTbox ? 'TBox' : (node.id.length > 13 ? node.id.slice(0,12)+'…' : node.id);
               return (
                 <g key={node.id} transform={`translate(${p.x},${p.y})`} style={{ cursor: 'grab' }} onMouseDown={e => onNodeMouseDown(e, node.id)}>
                   {sel && <circle r={NODE_R+10} fill={color} opacity="0.12" filter="url(#ch-glow)" />}
-                  <circle r={NODE_R+2} fill="none" stroke={color} strokeWidth={sel?2:1} strokeOpacity={sel?0.9:0.35} strokeDasharray={isMid?'3,3':'none'} />
-                  <circle r={NODE_R} fill="rgba(8,13,20,0.97)" stroke={color} strokeWidth={sel?2.5:1.5} />
-                  <text textAnchor="middle" dominantBaseline="middle" y={isMid?-7:-7} fontSize={isMid?18:15}>{icon}</text>
-                  <text textAnchor="middle" dominantBaseline="middle" y={11} fontSize="9" fontFamily="JetBrains Mono,monospace" fill={color} fontWeight={sel?'bold':'normal'}>{displayLabel}</text>
+                  <circle r={NODE_R+2} fill="none" stroke={color} strokeWidth={sel?2:1} strokeOpacity={sel?0.9:0.35} strokeDasharray={isTbox?'6,4':isMid?'3,3':'none'} />
+                  <circle r={NODE_R} fill={isTbox?'rgba(20,22,26,0.97)':'rgba(8,13,20,0.97)'} stroke={color} strokeWidth={sel?2.5:1.5} strokeDasharray={isTbox?'6,4':'none'} />
+                  <text textAnchor="middle" dominantBaseline="middle" y={isTbox?-10:isMid?-7:-7} fontSize={isTbox?14:isMid?18:15}>{icon}</text>
+                  <text textAnchor="middle" dominantBaseline="middle" y={isTbox?4:11} fontSize={isTbox?8:9} fontFamily="JetBrains Mono,monospace" fill={color} fontWeight={sel?'bold':'normal'}>{displayLabel}</text>
+                  {isTbox && <text textAnchor="middle" dominantBaseline="middle" y={14} fontSize="7" fontFamily="JetBrains Mono,monospace" fill="#6b7280">黑盒</text>}
                   <title>{node.id}</title>
                 </g>
               );
