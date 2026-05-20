@@ -167,40 +167,6 @@ export default function HomePage({ onNavigate }) {
         </div>
       </div>
 
-      {/* 系统架构 */}
-      <div style={{
-        background: 'rgba(13,21,32,0.9)',
-        border: '1px solid #1e3a5f',
-        borderRadius: 8,
-        padding: '16px 20px',
-      }}>
-        <div style={{
-          fontSize: 14, fontWeight: 600, fontFamily: 'var(--mono)',
-          color: '#e8f0fe', marginBottom: 14,
-        }}>
-          数据流
-        </div>
-        <div style={{
-          fontFamily: 'var(--mono)', fontSize: 11, color: '#5a7090',
-          lineHeight: 2, display: 'flex', flexDirection: 'column', gap: 4,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#00ff88' }}>Java Agent</span>
-            <span style={{ color: '#1e3a5f' }}>→ OTLP →</span>
-            <span style={{ color: '#00d4ff' }}>Edge Collector</span>
-            <span style={{ color: '#1e3a5f' }}>→ Kafka →</span>
-            <span style={{ color: '#00d4ff' }}>Central Collector</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 140 }}>
-            <span style={{ color: '#1e3a5f' }}>→</span>
-            <span style={{ color: '#eab308' }}>ClickHouse</span>
-            <span style={{ color: '#5a7090' }}>(Traces)</span>
-            <span style={{ color: '#1e3a5f' }}>+</span>
-            <span style={{ color: '#b06aff' }}>VictoriaMetrics</span>
-            <span style={{ color: '#5a7090' }}>(Metrics)</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

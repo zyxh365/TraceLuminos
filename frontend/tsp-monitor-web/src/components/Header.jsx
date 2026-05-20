@@ -95,7 +95,7 @@ export default function Header({ activeTab, onTabChange }) {
             border: '1px solid rgba(0,255,136,0.2)',
           }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#00ff88' }}>测试环境</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#00ff88' }}>{import.meta.env.VITE_ENV_LABEL || '测试环境'}</span>
           </div>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#5a7090' }}>{time}</span>
         </div>

@@ -1,7 +1,7 @@
 /**
  * ClickHouse 服务拓扑页面
  *
- * 数据来源：tsp-monitor-gateway → ClickHouse platform.tsp_service_topology（每小时预聚合）
+ * 数据来源：tsp-monitor-gateway → ClickHouse platform.tsp_service_topology
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -463,11 +463,6 @@ export default function ClickHouseTopology() {
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
           <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: '#00ff88', fontWeight: 600 }}>服务拓扑图</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, borderLeft: '1px solid #1e3a5f' }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#5a7090' }}>ClickHouse</span>
-          <span style={{ fontSize: 9, color: '#3a5070', fontFamily: 'var(--mono)' }}>预聚合</span>
-        </div>
-
         <div style={{ display: 'flex', gap: 4 }}>
           <button onClick={() => { setSearchType('traceId'); setSearchId(''); setSearchResults([]); setSearchError(null); }}
             style={{ padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11, background: searchType === 'traceId' ? 'rgba(0,255,136,0.2)' : 'transparent', border: '1px solid '+(searchType==='traceId'?'#00ff88':'#1e3a5f'), color: searchType==='traceId'?'#00ff88':'#5a7090' }}>TraceId</button>
@@ -502,7 +497,7 @@ export default function ClickHouseTopology() {
         </div>
       ) : (
         <div style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid #00ff8844', borderRadius: 6, padding: '8px 14px', fontFamily: 'var(--mono)', fontSize: 12, color: '#00ff88' }}>
-          📊 全局聚合模式 — 数据来源 ClickHouse tsp_service_topology（每小时预聚合）
+          📊 全局聚合模式 — 数据来源 tsp_service_topology
         </div>
       )}
       {error && <div style={{ background: 'rgba(255,77,106,0.1)', border: '1px solid #ff4d6a44', borderRadius: 6, padding: '8px 14px', fontFamily: 'var(--mono)', fontSize: 12, color: '#ff4d6a' }}>⚠️ {error}</div>}
