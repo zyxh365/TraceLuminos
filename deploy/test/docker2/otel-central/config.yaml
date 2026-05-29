@@ -1,0 +1,138 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP Central Collector 配置 — Docker v6.0
+# 镜像: otel/opentelemetry-collector-contrib:v0.149.0
+# Kafka: 华为云 DMS Kafka（PLAINTEXT，无认证）
+# ClickHouse: 自建（Server B）
+# ═══════════════════════════════════════════════════════════════
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: localhost:1777
+  zpages:
+    endpoint: localhost:55679
+  file_storage:
+    directory: /data/otelcol/storage
+    create_directory: true
+
+receivers:
+  kafka/traces:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "central-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    traces:
+      topics:
+        - ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-traces
+      encoding: otlp_proto
+
+    group_id: "${env:BUSINESS}-central-collector-traces-${env:DEPLOY_ENV}"
+    group_instance_id: "${env:HOSTNAME}-traces"
+    group_rebalance_strategy: cooperative-sticky
+
+    session_timeout: 30s
+    heartbeat_interval: 10s
+    max_poll_records: 500
+
+    consumer:
+      fetch_min_bytes: 65536
+      fetch_max_bytes: 5242880
+
+  kafka/metrics:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "central-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    metrics:
+      topics:
+        - ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-metrics
+      encoding: otlp_proto
+
+    group_id: "${env:BUSINESS}-central-collector-metrics-${env:DEPLOY_ENV}"
+    group_instance_id: "${env:HOSTNAME}-metrics"
+    group_rebalance_strategy: cooperative-sticky
+
+    session_timeout: 30s
+    heartbeat_interval: 10s
+    max_poll_records: 500
+
+    consumer:
+      fetch_min_bytes: 65536
+      fetch_max_bytes: 5242880
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  batch/traces:
+    send_batch_size: 2000
+    send_batch_max_size: 3000
+    timeout: 5s
+
+  batch/metrics:
+    send_batch_size: 500
+    send_batch_max_size: 1000
+    timeout: 10s
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: "${env:DEPLOY_ENV}"
+        action: insert
+
+exporters:
+  clickhouse:
+    endpoint: "tcp://${env:CLICKHOUSE_HOST}:${env:CLICKHOUSE_NATIVE_PORT}"
+    username: "${env:CLICKHOUSE_USER}"
+    password: "${env:CLICKHOUSE_PASSWORD}"
+    database: "${env:CLICKHOUSE_DATABASE}"
+    async_insert: true
+    timeout: 15s
+
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  prometheusremotewrite/vm:
+    endpoint: "http://${env:VM_ENDPOINT}:8428/api/v1/write"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  debug:
+    verbosity: basic
+    sampling_initial: 2
+    sampling_thereafter: 500
+
+service:
+  extensions: [health_check, file_storage]
+
+  telemetry:
+    logs:
+      level: warn
+
+  pipelines:
+    traces:
+      receivers: [kafka/traces]
+      processors: [memory_limiter, resource, batch/traces]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [kafka/metrics]
+      processors: [memory_limiter, resource, batch/metrics]
+      exporters: [prometheusremotewrite/vm]

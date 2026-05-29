@@ -1,0 +1,17 @@
+trace_detail:
+  trace_id: 1e6a8c5f3b2d4e7a9c0b1d2e3f4a5b6c
+
+  span_id: 3f2e1d0c9b8a7e6d5c4b3a2f1e0d9c8b
+
+  parent_id: 2e1d0c9b8a7e6d5c4b3a2f1e0d9c8b7a
+
+  service: vehicle-control
+
+  operation: HandleRemoteCommand
+
+  status: 成功
+
+  tags:
+    cmdType: unlock_door
+    vin: LSGAxxxxxxxx1234
+    userId: user_10086

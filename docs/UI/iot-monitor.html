@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>车联网全链路监控平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0: #0a0d14;
+  --bg1: #0f1420;
+  --bg2: #141926;
+  --bg3: #1a2030;
+  --bg4: #1f2638;
+  --border: rgba(80,120,180,0.15);
+  --border-bright: rgba(80,140,220,0.28);
+  --teal: #00e5b0;
+  --teal-dim: #00b58a;
+  --teal-bg: rgba(0,229,176,0.06);
+  --blue: #4da8ff;
+  --blue-dim: #2d7ed4;
+  --amber: #ffb830;
+  --amber-dim: #d4901e;
+  --amber-bg: rgba(255,184,48,0.07);
+  --red: #ff5050;
+  --red-dim: #c03a3a;
+  --red-bg: rgba(255,80,80,0.07);
+  --text0: #e8edf5;
+  --text1: #9aa8be;
+  --text2: #5a6880;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --r: 6px;
+  --r2: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg0); color:var(--text0); font-family:var(--sans); font-size:13px; line-height:1.5; overflow-x:hidden; min-height:100vh; }
+
+/* ─── Top bar ─── */
+.topbar { display:flex; align-items:center; gap:0; height:52px; background:var(--bg1); border-bottom:1px solid var(--border-bright); padding:0 20px; position:sticky; top:0; z-index:100; }
+.logo { display:flex; align-items:center; gap:10px; margin-right:32px; }
+.logo-icon { width:28px; height:28px; }
+.logo-text { font-size:15px; font-weight:600; letter-spacing:0.5px; color:var(--text0); }
+.logo-sub { font-size:10px; color:var(--teal); font-family:var(--mono); letter-spacing:1px; margin-top:-2px; }
+.nav-items { display:flex; gap:4px; flex:1; }
+.nav-item { padding:6px 14px; border-radius:var(--r); color:var(--text1); cursor:pointer; font-size:12.5px; transition:all .15s; white-space:nowrap; }
+.nav-item:hover { background:var(--bg3); color:var(--text0); }
+.nav-item.active { background:rgba(0,229,176,0.1); color:var(--teal); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.status-pill { display:flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid rgba(0,229,176,0.25); border-radius:20px; font-size:11px; color:var(--teal); font-family:var(--mono); }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--teal); box-shadow:0 0 6px var(--teal); animation:pulse 2s infinite; }
+.dot.warn { background:var(--amber); box-shadow:0 0 6px var(--amber); }
+.dot.err { background:var(--red); box-shadow:0 0 6px var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.time-display { font-family:var(--mono); font-size:12px; color:var(--text1); }
+
+/* ─── Layout ─── */
+.layout { display:grid; grid-template-columns:260px 1fr 300px; grid-template-rows:auto 1fr; gap:0; height:calc(100vh - 52px); }
+
+/* ─── Left sidebar ─── */
+.sidebar { background:var(--bg1); border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; gap:0; padding:0; }
+.sidebar-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.section-title { font-size:10px; font-weight:600; letter-spacing:1.5px; color:var(--text2); text-transform:uppercase; margin-bottom:10px; }
+
+/* Fleet summary */
+.fleet-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.fleet-stat { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); padding:10px; }
+.fleet-stat-val { font-size:22px; font-weight:600; font-family:var(--mono); color:var(--teal); line-height:1; }
+.fleet-stat-val.warn { color:var(--amber); }
+.fleet-stat-val.err { color:var(--red); }
+.fleet-stat-label { font-size:10px; color:var(--text2); margin-top:3px; }
+
+/* Chain nodes list */
+.chain-list { display:flex; flex-direction:column; gap:6px; }
+.chain-node { display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); cursor:pointer; transition:all .15s; position:relative; }
+.chain-node:hover { border-color:var(--border-bright); background:var(--bg3); }
+.chain-node.selected { border-color:rgba(0,229,176,0.35); background:var(--teal-bg); }
+.chain-node-icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:13px; }
+.chain-node-info { flex:1; min-width:0; }
+.chain-node-name { font-size:12px; font-weight:500; color:var(--text0); }
+.chain-node-meta { font-size:10px; color:var(--text2); margin-top:1px; font-family:var(--mono); }
+.node-badge { font-size:9px; padding:2px 7px; border-radius:10px; font-weight:600; letter-spacing:.5px; margin-left:auto; flex-shrink:0; }
+.badge-ok  { background:rgba(0,229,176,.12); color:var(--teal); }
+.badge-warn { background:rgba(255,184,48,.12); color:var(--amber); }
+.badge-err  { background:rgba(255,80,80,.12); color:var(--red); }
+.chain-connector { display:flex; align-items:center; padding-left:24px; gap:6px; margin:1px 0; }
+.chain-connector-line { width:1px; height:12px; background:var(--border-bright); margin-left:13px; }
+.chain-connector-label { font-size:9.5px; color:var(--text2); font-family:var(--mono); }
+.lat-tag { font-size:9px; color:var(--teal-dim); font-family:var(--mono); margin-left:auto; }
+
+/* ─── Main content ─── */
+.main { overflow-y:auto; display:flex; flex-direction:column; gap:0; background:var(--bg0); }
+.main-header { padding:14px 20px 0; display:flex; align-items:center; gap:12px; }
+.page-title { font-size:16px; font-weight:600; }
+.page-sub { font-size:12px; color:var(--text2); margin-left:4px; }
+.breadcrumb { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); }
+.breadcrumb span { color:var(--teal); }
+
+/* Metric cards row */
+.metric-row { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:14px 20px; }
+.metric-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r2); padding:12px 14px; position:relative; overflow:hidden; }
+.metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.metric-card.ok::before { background:var(--teal); }
+.metric-card.warn::before { background:var(--amber); }
+.metric-card.err::before { background:var(--red); }
+.metric-card.info::before { background:var(--blue); }
+.metric-label { font-size:10px; color:var(--text2); letter-spacing:.5px; text-transform:uppercase; margin-bottom:6px; }
+.metric-val { font-size:24px; font-weight:700; font-family:var(--mono); line-height:1; }
+.metric-val.ok { color:var(--teal); }
+.metric-val.warn { color:var(--amber); }
+.metric-val.err { color:var(--red); }
+.metric-val.info { color:var(--blue); }
+.metric-delta { font-size:10px; color:var(--text2); margin-top:4px; display:flex; align-items:center; gap:4px; }
+.delta-up { color:var(--teal); }
+.delta-down { color:var(--red); }
+.spark { height:24px; margin-top:6px; }
+
+/* Main panels grid */
+.panels-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px 14px; }
+.panels-grid.full { grid-template-columns:1fr; }
+.panel { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r2); overflow:hidden; }
+.panel-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border); }
+.panel-title { font-size:12px; font-weight:600; color:var(--text0); display:flex; align-items:center; gap:7px; }
+.panel-icon { font-size:14px; }
+.panel-actions { display:flex; gap:6px; }
+.btn-sm { padding:3px 10px; border:1px solid var(--border-bright); border-radius:4px; background:transparent; color:var(--text1); font-size:10px; cursor:pointer; transition:all .15s; font-family:var(--sans); }
+.btn-sm:hover { background:var(--bg3); color:var(--text0); }
+.btn-sm.active { background:rgba(0,229,176,.1); border-color:rgba(0,229,176,.3); color:var(--teal); }
+.panel-body { padding:14px; }
+
+/* Chain topology SVG */
+#chain-svg { width:100%; }
+
+/* Data flow canvas */
+#flow-canvas { width:100%; height:160px; display:block; }
+
+/* Table */
+.data-table { width:100%; border-collapse:collapse; font-size:11px; }
+.data-table th { text-align:left; padding:6px 10px; font-size:9.5px; letter-spacing:.8px; text-transform:uppercase; color:var(--text2); border-bottom:1px solid var(--border); font-weight:500; }
+.data-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.03); color:var(--text1); font-family:var(--mono); }
+.data-table tr:hover td { background:var(--bg3); }
+.data-table tr:last-child td { border-bottom:none; }
+.td-id { color:var(--blue); }
+.td-ok { color:var(--teal); }
+.td-warn { color:var(--amber); }
+.td-err { color:var(--red); }
+
+/* ─── Right panel ─── */
+.right-panel { background:var(--bg1); border-left:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
+.rp-section { border-bottom:1px solid var(--border); }
+.rp-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; }
+.rp-title { font-size:11px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:var(--text2); display:flex; align-items:center; gap:6px; }
+.alarm-count { background:rgba(255,80,80,.15); color:var(--red); font-size:9px; padding:1px 6px; border-radius:8px; font-family:var(--mono); }
+.alarm-list { display:flex; flex-direction:column; }
+.alarm-item { display:flex; gap:10px; padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.03); cursor:pointer; transition:background .12s; }
+.alarm-item:hover { background:var(--bg2); }
+.alarm-item:last-child { border-bottom:none; }
+.alarm-sev { width:3px; border-radius:2px; flex-shrink:0; align-self:stretch; }
+.alarm-sev.crit { background:var(--red); }
+.alarm-sev.warn { background:var(--amber); }
+.alarm-sev.info { background:var(--blue); }
+.alarm-body { flex:1; min-width:0; }
+.alarm-title { font-size:11.5px; color:var(--text0); font-weight:500; }
+.alarm-meta { font-size:10px; color:var(--text2); margin-top:2px; font-family:var(--mono); display:flex; gap:8px; }
+.alarm-time { color:var(--amber); }
+.alarm-badge { font-size:9px; padding:1px 6px; border-radius:4px; margin-left:auto; align-self:flex-start; flex-shrink:0; }
+
+/* Event log */
+.event-log { padding:8px 14px; display:flex; flex-direction:column; gap:2px; }
+.log-line { display:flex; gap:8px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,.025); font-size:10px; font-family:var(--mono); }
+.log-line:last-child { border-bottom:none; }
+.log-ts { color:var(--text2); flex-shrink:0; }
+.log-lvl { width:34px; text-align:center; border-radius:3px; font-size:9px; font-weight:600; flex-shrink:0; }
+.lvl-info { background:rgba(77,168,255,.12); color:var(--blue); }
+.lvl-warn { background:rgba(255,184,48,.12); color:var(--amber); }
+.lvl-err  { background:rgba(255,80,80,.12); color:var(--red); }
+.lvl-ok   { background:rgba(0,229,176,.1); color:var(--teal); }
+.log-msg { color:var(--text1); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Link health bars */
+.link-list { padding:10px 14px; display:flex; flex-direction:column; gap:8px; }
+.link-row { display:flex; flex-direction:column; gap:3px; }
+.link-row-header { display:flex; justify-content:space-between; align-items:center; }
+.link-name { font-size:10.5px; color:var(--text1); }
+.link-val { font-size:10px; font-family:var(--mono); }
+.link-bar-bg { height:4px; background:var(--bg4); border-radius:2px; overflow:hidden; }
+.link-bar-fill { height:100%; border-radius:2px; transition:width .5s ease; }
+
+/* Throughput mini bars (sparkline replacement) */
+.mini-bars { display:flex; gap:2px; align-items:flex-end; height:24px; }
+.mini-bar { width:4px; border-radius:1px; background:var(--teal); opacity:.7; min-height:2px; transition:height .3s; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--bg4); border-radius:2px; }
+
+/* geo-map placeholder */
+.geo-map { position:relative; background:var(--bg3); border-radius:var(--r); height:170px; overflow:hidden; }
+.geo-grid { position:absolute; inset:0; opacity:.15; }
+.vehicle-dot { position:absolute; width:7px; height:7px; border-radius:50%; transform:translate(-50%,-50%); }
+.vehicle-dot.online { background:var(--teal); box-shadow:0 0 8px var(--teal); }
+.vehicle-dot.warn { background:var(--amber); box-shadow:0 0 8px var(--amber); }
+.vehicle-dot.offline { background:var(--text2); }
+.vehicle-dot.active { animation:ping 1.5s infinite; }
+@keyframes ping { 0%{box-shadow:0 0 0 0 rgba(0,229,176,.5)} 70%{box-shadow:0 0 0 8px rgba(0,229,176,0)} 100%{box-shadow:0 0 0 0 rgba(0,229,176,0)} }
+.geo-label { position:absolute; font-size:9px; color:var(--text2); font-family:var(--mono); transform:translateX(-50%); white-space:nowrap; }
+
+/* Latency gauge ring */
+.gauge-row { display:flex; gap:12px; align-items:center; padding:6px 0; }
+.gauge-ring { position:relative; width:52px; height:52px; flex-shrink:0; }
+.gauge-ring canvas { width:52px; height:52px; }
+.gauge-val { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family:var(--mono); }
+.gauge-info { flex:1; }
+.gauge-name { font-size:11px; color:var(--text1); }
+.gauge-detail { font-size:10px; color:var(--text2); font-family:var(--mono); margin-top:2px; }
+
+/* Tabs */
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); padding:0 14px; }
+.tab { padding:8px 12px; font-size:11px; color:var(--text2); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .15s; }
+.tab:hover { color:var(--text1); }
+.tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+</style>
+</head>
+<body>
+
+<!-- ─── Top Bar ─── -->
+<div class="topbar">
+  <div class="logo">
+    <svg class="logo-icon" viewBox="0 0 28 28" fill="none">
+      <rect x="2" y="2" width="24" height="24" rx="6" fill="rgba(0,229,176,0.08)" stroke="rgba(0,229,176,0.3)" stroke-width="1"/>
+      <circle cx="14" cy="14" r="5" fill="none" stroke="#00e5b0" stroke-width="1.5"/>
+      <circle cx="14" cy="14" r="2" fill="#00e5b0"/>
+      <line x1="14" y1="6" x2="14" y2="9" stroke="#00e5b0" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="14" y1="19" x2="14" y2="22" stroke="#00e5b0" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="6" y1="14" x2="9" y2="14" stroke="#00e5b0" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="19" y1="14" x2="22" y2="14" stroke="#00e5b0" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="logo-text">VehicleTrace</div>
+      <div class="logo-sub">FULL-CHAIN MONITOR</div>
+    </div>
+  </div>
+  <div class="nav-items">
+    <div class="nav-item active">全链路总览</div>
+    <div class="nav-item">车辆管理</div>
+    <div class="nav-item">链路诊断</div>
+    <div class="nav-item">协议解析</div>
+    <div class="nav-item">告警中心</div>
+    <div class="nav-item">数据报表</div>
+    <div class="nav-item">系统配置</div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill"><div class="dot"></div> 系统正常运行</div>
+    <div class="time-display" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<!-- ─── Layout ─── -->
+<div class="layout">
+
+  <!-- ─── Left Sidebar ─── -->
+  <div class="sidebar">
+    <!-- Fleet overview -->
+    <div class="sidebar-section">
+      <div class="section-title">车队实时状态</div>
+      <div class="fleet-stats">
+        <div class="fleet-stat">
+          <div class="fleet-stat-val ok" id="s-online">2,841</div>
+          <div class="fleet-stat-label">在线车辆</div>
+        </div>
+        <div class="fleet-stat">
+          <div class="fleet-stat-val" style="color:var(--text2)" id="s-offline">156</div>
+          <div class="fleet-stat-label">离线车辆</div>
+        </div>
+        <div class="fleet-stat">
+          <div class="fleet-stat-val warn" id="s-warn">23</div>
+          <div class="fleet-stat-label">活跃告警</div>
+        </div>
+        <div class="fleet-stat">
+          <div class="fleet-stat-val info" style="color:var(--blue)" id="s-msg">48.2k</div>
+          <div class="fleet-stat-label">消息/秒</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chain nodes -->
+    <div class="sidebar-section" style="flex:1">
+      <div class="section-title">全链路节点</div>
+      <div class="chain-list">
+
+        <div class="chain-node selected" id="node-vehicle">
+          <div class="chain-node-icon" style="background:rgba(0,229,176,.1); color:var(--teal)">🚗</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">终端车辆层</div>
+            <div class="chain-node-meta">OBD / T-BOX / ADAS</div>
+          </div>
+          <div class="node-badge badge-ok">正常</div>
+        </div>
+
+        <div class="chain-connector">
+          <div class="chain-connector-line"></div>
+          <div class="chain-connector-label">4G/5G · MQTT</div>
+          <div class="lat-tag" id="lat1">12ms</div>
+        </div>
+
+        <div class="chain-node" id="node-gateway">
+          <div class="chain-node-icon" style="background:rgba(77,168,255,.1); color:var(--blue)">📡</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">接入网关层</div>
+            <div class="chain-node-meta">MQTT Broker × 8</div>
+          </div>
+          <div class="node-badge badge-ok">正常</div>
+        </div>
+
+        <div class="chain-connector">
+          <div class="chain-connector-line"></div>
+          <div class="chain-connector-label">内网 TCP · TLS</div>
+          <div class="lat-tag" id="lat2">3ms</div>
+        </div>
+
+        <div class="chain-node" id="node-edge">
+          <div class="chain-node-icon" style="background:rgba(255,184,48,.1); color:var(--amber)">⚡</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">边缘计算层</div>
+            <div class="chain-node-meta">Kafka × 6 · Flink</div>
+          </div>
+          <div class="node-badge badge-warn">注意</div>
+        </div>
+
+        <div class="chain-connector">
+          <div class="chain-connector-line"></div>
+          <div class="chain-connector-label">消息队列</div>
+          <div class="lat-tag" id="lat3">8ms</div>
+        </div>
+
+        <div class="chain-node" id="node-cloud">
+          <div class="chain-node-icon" style="background:rgba(0,229,176,.1); color:var(--teal)">☁️</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">云平台核心层</div>
+            <div class="chain-node-meta">微服务 × 42 Pod</div>
+          </div>
+          <div class="node-badge badge-ok">正常</div>
+        </div>
+
+        <div class="chain-connector">
+          <div class="chain-connector-line"></div>
+          <div class="chain-connector-label">REST / gRPC</div>
+          <div class="lat-tag" id="lat4">5ms</div>
+        </div>
+
+        <div class="chain-node" id="node-db">
+          <div class="chain-node-icon" style="background:rgba(77,168,255,.1); color:var(--blue)">🗄️</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">存储服务层</div>
+            <div class="chain-node-meta">InfluxDB · Redis · PG</div>
+          </div>
+          <div class="node-badge badge-ok">正常</div>
+        </div>
+
+        <div class="chain-connector">
+          <div class="chain-connector-line"></div>
+          <div class="chain-connector-label">OpenAPI · WebSocket</div>
+          <div class="lat-tag" id="lat5">18ms</div>
+        </div>
+
+        <div class="chain-node" id="node-app">
+          <div class="chain-node-icon" style="background:rgba(160,100,255,.1); color:#c084fc">📱</div>
+          <div class="chain-node-info">
+            <div class="chain-node-name">应用服务层</div>
+            <div class="chain-node-meta">Web · App · 三方接入</div>
+          </div>
+          <div class="node-badge badge-ok">正常</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="sidebar-section">
+      <div class="section-title">快捷操作</div>
+      <div style="display:flex; flex-direction:column; gap:5px;">
+        <button class="btn-sm" style="text-align:left; width:100%">⬇ 导出链路报告</button>
+        <button class="btn-sm" style="text-align:left; width:100%">🔁 重置链路测试</button>
+        <button class="btn-sm" style="text-align:left; width:100%">📋 查看历史快照</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Main Content ─── -->
+  <div class="main">
+    <!-- Breadcrumb -->
+    <div style="padding:12px 20px 0; display:flex; align-items:center; justify-content:space-between;">
+      <div class="breadcrumb">首页 › <span>全链路总览</span></div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div style="font-size:10px; color:var(--text2)">自动刷新</div>
+        <div class="status-pill" style="border-color:rgba(77,168,255,.25); color:var(--blue)"><div class="dot" style="background:var(--blue); box-shadow:0 0 6px var(--blue)"></div> 实时</div>
+      </div>
+    </div>
+
+    <!-- Metrics row -->
+    <div class="metric-row">
+      <div class="metric-card ok">
+        <div class="metric-label">端到端延迟</div>
+        <div class="metric-val ok" id="m-latency">46ms</div>
+        <div class="metric-delta"><span class="delta-up">↓ -3ms</span> vs 1h前</div>
+        <div class="mini-bars" id="spark-lat"></div>
+      </div>
+      <div class="metric-card info">
+        <div class="metric-label">消息吞吐量</div>
+        <div class="metric-val info" id="m-throughput">48.2k/s</div>
+        <div class="metric-delta"><span class="delta-up">↑ +12%</span> vs 1h前</div>
+        <div class="mini-bars" id="spark-tput"></div>
+      </div>
+      <div class="metric-card warn">
+        <div class="metric-label">消息丢包率</div>
+        <div class="metric-val warn" id="m-loss">0.12%</div>
+        <div class="metric-delta"><span class="delta-down">↑ +0.04%</span> vs 1h前</div>
+        <div class="mini-bars" id="spark-loss"></div>
+      </div>
+      <div class="metric-card ok">
+        <div class="metric-label">协议解析成功率</div>
+        <div class="metric-val ok" id="m-parse">99.87%</div>
+        <div class="metric-delta"><span class="delta-up">↑ +0.02%</span> vs 1h前</div>
+        <div class="mini-bars" id="spark-parse"></div>
+      </div>
+      <div class="metric-card ok">
+        <div class="metric-label">平台可用性</div>
+        <div class="metric-val ok">99.99%</div>
+        <div class="metric-delta" style="color:var(--teal)">SLA 达标 ✓</div>
+        <div class="mini-bars" id="spark-avail"></div>
+      </div>
+    </div>
+
+    <!-- Chain topology + flow -->
+    <div style="padding:0 20px; margin-bottom:10px;">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⛓ 全链路拓扑状态</div>
+          <div class="panel-actions">
+            <button class="btn-sm active">实时</button>
+            <button class="btn-sm">1h</button>
+            <button class="btn-sm">24h</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:16px 20px;">
+          <svg id="chain-svg" viewBox="0 0 760 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Node definitions as groups -->
+            <!-- Vehicle -->
+            <g id="n0" style="cursor:pointer">
+              <rect x="10" y="28" width="100" height="56" rx="8" fill="rgba(0,229,176,0.07)" stroke="rgba(0,229,176,0.35)" stroke-width="1"/>
+              <text x="60" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">🚗</text>
+              <text x="60" y="67" text-anchor="middle" fill="#e8edf5" font-size="10" font-weight="500" font-family="Inter,sans-serif">终端车辆</text>
+              <text x="60" y="79" text-anchor="middle" fill="#5a6880" font-size="9" font-family="JetBrains Mono,monospace">2841 在线</text>
+              <circle cx="90" cy="33" r="5" fill="#00e5b0"/>
+            </g>
+            <!-- Arrow 1 -->
+            <g id="a01">
+              <line x1="110" y1="56" x2="148" y2="56" stroke="rgba(0,229,176,0.4)" stroke-width="1.5" marker-end="url(#ach)"/>
+              <text x="129" y="50" text-anchor="middle" fill="#00b58a" font-size="8.5" font-family="JetBrains Mono,monospace">MQTT</text>
+              <text x="129" y="67" text-anchor="middle" fill="#3a4a60" font-size="8" font-family="JetBrains Mono,monospace" id="flow-1">↓ 12ms</text>
+            </g>
+            <!-- Gateway -->
+            <g style="cursor:pointer">
+              <rect x="150" y="28" width="100" height="56" rx="8" fill="rgba(77,168,255,0.07)" stroke="rgba(77,168,255,0.35)" stroke-width="1"/>
+              <text x="200" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">📡</text>
+              <text x="200" y="67" text-anchor="middle" fill="#e8edf5" font-size="10" font-weight="500" font-family="Inter,sans-serif">接入网关</text>
+              <text x="200" y="79" text-anchor="middle" fill="#5a6880" font-size="9" font-family="JetBrains Mono,monospace">×8 节点</text>
+              <circle cx="230" cy="33" r="5" fill="#00e5b0"/>
+            </g>
+            <!-- Arrow 2 -->
+            <g>
+              <line x1="250" y1="56" x2="288" y2="56" stroke="rgba(77,168,255,0.4)" stroke-width="1.5" marker-end="url(#ach)"/>
+              <text x="269" y="50" text-anchor="middle" fill="#2d7ed4" font-size="8.5" font-family="JetBrains Mono,monospace">TCP/TLS</text>
+              <text x="269" y="67" text-anchor="middle" fill="#3a4a60" font-size="8" font-family="JetBrains Mono,monospace" id="flow-2">↓ 3ms</text>
+            </g>
+            <!-- Edge -->
+            <g style="cursor:pointer">
+              <rect x="290" y="28" width="100" height="56" rx="8" fill="rgba(255,184,48,0.08)" stroke="rgba(255,184,48,0.45)" stroke-width="1"/>
+              <text x="340" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">⚡</text>
+              <text x="340" y="67" text-anchor="middle" fill="#e8edf5" font-size="10" font-weight="500" font-family="Inter,sans-serif">边缘计算</text>
+              <text x="340" y="79" text-anchor="middle" fill="#d4901e" font-size="9" font-family="JetBrains Mono,monospace">Kafka 89%</text>
+              <circle cx="370" cy="33" r="5" fill="#ffb830"/>
+              <text x="370" y="21" text-anchor="middle" fill="#ffb830" font-size="8" font-family="Inter,sans-serif">⚠ 注意</text>
+            </g>
+            <!-- Arrow 3 -->
+            <g>
+              <line x1="390" y1="56" x2="428" y2="56" stroke="rgba(255,184,48,0.35)" stroke-width="1.5" marker-end="url(#ach)"/>
+              <text x="409" y="50" text-anchor="middle" fill="#d4901e" font-size="8.5" font-family="JetBrains Mono,monospace">Kafka</text>
+              <text x="409" y="67" text-anchor="middle" fill="#3a4a60" font-size="8" font-family="JetBrains Mono,monospace" id="flow-3">↓ 8ms</text>
+            </g>
+            <!-- Cloud -->
+            <g style="cursor:pointer">
+              <rect x="430" y="28" width="100" height="56" rx="8" fill="rgba(0,229,176,0.07)" stroke="rgba(0,229,176,0.3)" stroke-width="1"/>
+              <text x="480" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">☁️</text>
+              <text x="480" y="67" text-anchor="middle" fill="#e8edf5" font-size="10" font-weight="500" font-family="Inter,sans-serif">云平台核心</text>
+              <text x="480" y="79" text-anchor="middle" fill="#5a6880" font-size="9" font-family="JetBrains Mono,monospace">42 Pods</text>
+              <circle cx="510" cy="33" r="5" fill="#00e5b0"/>
+            </g>
+            <!-- Arrow 4 -->
+            <g>
+              <line x1="530" y1="56" x2="568" y2="56" stroke="rgba(0,229,176,0.4)" stroke-width="1.5" marker-end="url(#ach)"/>
+              <text x="549" y="50" text-anchor="middle" fill="#00b58a" font-size="8.5" font-family="JetBrains Mono,monospace">gRPC</text>
+              <text x="549" y="67" text-anchor="middle" fill="#3a4a60" font-size="8" font-family="JetBrains Mono,monospace" id="flow-4">↓ 5ms</text>
+            </g>
+            <!-- DB -->
+            <g style="cursor:pointer">
+              <rect x="570" y="28" width="100" height="56" rx="8" fill="rgba(77,168,255,0.07)" stroke="rgba(77,168,255,0.3)" stroke-width="1"/>
+              <text x="620" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">🗄️</text>
+              <text x="620" y="67" text-anchor="middle" fill="#e8edf5" font-size="10" font-weight="500" font-family="Inter,sans-serif">存储服务</text>
+              <text x="620" y="79" text-anchor="middle" fill="#5a6880" font-size="9" font-family="JetBrains Mono,monospace">InfluxDB·PG</text>
+              <circle cx="650" cy="33" r="5" fill="#00e5b0"/>
+            </g>
+            <!-- Arrow 5 -->
+            <g>
+              <line x1="670" y1="56" x2="708" y2="56" stroke="rgba(160,100,255,0.4)" stroke-width="1.5" marker-end="url(#ach)"/>
+              <text x="689" y="50" text-anchor="middle" fill="#a855f7" font-size="8.5" font-family="JetBrains Mono,monospace">API</text>
+              <text x="689" y="67" text-anchor="middle" fill="#3a4a60" font-size="8" font-family="JetBrains Mono,monospace" id="flow-5">↓ 18ms</text>
+            </g>
+            <!-- App -->
+            <g style="cursor:pointer">
+              <rect x="710" y="28" width="48" height="56" rx="8" fill="rgba(160,100,255,0.08)" stroke="rgba(160,100,255,0.35)" stroke-width="1"/>
+              <text x="734" y="52" text-anchor="middle" fill="#9aa8be" font-size="16">📱</text>
+              <text x="734" y="67" text-anchor="middle" fill="#e8edf5" font-size="9" font-weight="500" font-family="Inter,sans-serif">应用层</text>
+              <circle cx="748" cy="33" r="5" fill="#00e5b0"/>
+            </g>
+            <!-- Arrow marker -->
+            <defs>
+              <marker id="ach" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two col: data flow + vehicle table -->
+    <div class="panels-grid" style="padding:0 20px;">
+
+      <!-- Data flow chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📊 实时消息流量</div>
+          <div class="panel-actions">
+            <span style="font-size:10px;color:var(--text2);font-family:var(--mono)" id="throughput-display">48,234 msg/s</span>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:10px">
+          <canvas id="flow-canvas"></canvas>
+          <div style="display:flex;gap:14px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:3px;background:var(--teal);border-radius:2px"></div>上行（车→云）</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:3px;background:var(--blue);border-radius:2px"></div>下行（云→车）</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:3px;background:var(--amber);border-radius:2px"></div>丢包</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle status table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🚗 车辆状态列表</div>
+          <div class="panel-actions">
+            <button class="btn-sm">全部</button>
+            <button class="btn-sm active">异常</button>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">实时</div>
+          <div class="tab">历史</div>
+          <div class="tab">统计</div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>车辆ID</th>
+              <th>状态</th>
+              <th>延迟</th>
+              <th>最后上报</th>
+              <th>告警</th>
+            </tr>
+          </thead>
+          <tbody id="vehicle-table">
+            <tr>
+              <td class="td-id">VH-08821</td>
+              <td class="td-warn">⚠ 弱网</td>
+              <td class="td-warn">312ms</td>
+              <td>刚刚</td>
+              <td class="td-warn">信号弱</td>
+            </tr>
+            <tr>
+              <td class="td-id">VH-04492</td>
+              <td class="td-err">✗ 离线</td>
+              <td class="td-err">超时</td>
+              <td>3分钟前</td>
+              <td class="td-err">断线</td>
+            </tr>
+            <tr>
+              <td class="td-id">VH-17203</td>
+              <td class="td-ok">✓ 在线</td>
+              <td class="td-ok">18ms</td>
+              <td>刚刚</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td class="td-id">VH-09315</td>
+              <td class="td-warn">⚠ 丢包</td>
+              <td class="td-warn">156ms</td>
+              <td>12秒前</td>
+              <td class="td-warn">丢包率高</td>
+            </tr>
+            <tr>
+              <td class="td-id">VH-22140</td>
+              <td class="td-ok">✓ 在线</td>
+              <td class="td-ok">22ms</td>
+              <td>刚刚</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td class="td-id">VH-31088</td>
+              <td class="td-err">✗ 协议错误</td>
+              <td>-</td>
+              <td>1分钟前</td>
+              <td class="td-err">解析失败</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Geo map + latency gauges -->
+    <div class="panels-grid" style="padding:0 20px 20px;">
+      <!-- Geo map -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🗺 车辆地理分布</div>
+          <div class="panel-actions">
+            <button class="btn-sm active">热力</button>
+            <button class="btn-sm">轨迹</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:10px">
+          <div class="geo-map" id="geo-map">
+            <svg class="geo-grid" viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%">
+              <!-- Grid lines -->
+              <line x1="0" y1="20" x2="100" y2="20" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="0" y1="60" x2="100" y2="60" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="0" y1="80" x2="100" y2="80" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="20" y1="0" x2="20" y2="100" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="40" y1="0" x2="40" y2="100" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="60" y1="0" x2="60" y2="100" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <line x1="80" y1="0" x2="80" y2="100" stroke="rgba(77,168,255,0.2)" stroke-width="0.3"/>
+              <!-- China outline simplified -->
+              <polyline points="25,15 35,12 50,10 60,12 72,18 78,25 80,35 76,45 70,55 65,62 60,70 52,75 45,72 38,65 30,60 22,55 18,45 20,35 22,25 25,15" fill="none" stroke="rgba(77,168,255,0.25)" stroke-width="0.5"/>
+            </svg>
+            <!-- City labels -->
+            <div class="geo-label" style="left:35%;top:22%">北京</div>
+            <div class="geo-label" style="left:55%;top:28%">天津</div>
+            <div class="geo-label" style="left:62%;top:42%">上海</div>
+            <div class="geo-label" style="left:50%;top:50%">杭州</div>
+            <div class="geo-label" style="left:38%;top:58%">重庆</div>
+            <div class="geo-label" style="left:45%;top:35%">济南</div>
+            <!-- Vehicle dots -->
+            <div class="vehicle-dot online active" style="left:34%;top:25%"></div>
+            <div class="vehicle-dot online" style="left:37%;top:24%"></div>
+            <div class="vehicle-dot warn" style="left:63%;top:45%"></div>
+            <div class="vehicle-dot online active" style="left:60%;top:44%"></div>
+            <div class="vehicle-dot online" style="left:52%;top:52%"></div>
+            <div class="vehicle-dot online" style="left:55%;top:50%"></div>
+            <div class="vehicle-dot warn" style="left:39%;top:60%"></div>
+            <div class="vehicle-dot online" style="left:47%;top:37%"></div>
+            <div class="vehicle-dot offline" style="left:42%;top:62%"></div>
+            <div class="vehicle-dot online" style="left:30%;top:45%"></div>
+            <div class="vehicle-dot online active" style="left:28%;top:43%"></div>
+            <div class="vehicle-dot online" style="left:56%;top:31%"></div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div class="vehicle-dot online" style="position:relative;width:7px;height:7px;transform:none;"></div>在线</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div class="vehicle-dot warn" style="position:relative;width:7px;height:7px;transform:none;"></div>告警</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div class="vehicle-dot offline" style="position:relative;width:7px;height:7px;transform:none;"></div>离线</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latency gauges -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⏱ 分段链路延迟</div>
+        </div>
+        <div class="panel-body" style="padding:10px">
+          <div id="gauges-container">
+            <!-- Rendered by JS -->
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase">链路健康评分</div>
+            <div style="display:flex;align-items:baseline;gap:6px;">
+              <div style="font-size:36px;font-weight:700;font-family:var(--mono);color:var(--teal)">96.8</div>
+              <div style="font-size:12px;color:var(--text2)">/ 100</div>
+              <div style="font-size:11px;background:rgba(0,229,176,.1);color:var(--teal);padding:2px 8px;border-radius:4px;margin-left:6px">优秀</div>
+            </div>
+            <div class="link-bar-bg" style="margin-top:6px"><div class="link-bar-fill" style="width:96.8%;background:var(--teal)"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Right Panel ─── -->
+  <div class="right-panel">
+
+    <!-- Active alarms -->
+    <div class="rp-section">
+      <div class="rp-header">
+        <div class="rp-title">🔔 活跃告警 <span class="alarm-count" id="alarm-count">23</span></div>
+        <button class="btn-sm">全部</button>
+      </div>
+      <div class="alarm-list">
+        <div class="alarm-item">
+          <div class="alarm-sev crit"></div>
+          <div class="alarm-body">
+            <div class="alarm-title">Kafka 分区积压超阈值</div>
+            <div class="alarm-meta"><span class="alarm-time">00:02前</span><span>边缘计算层</span></div>
+          </div>
+          <div class="alarm-badge badge-err">严重</div>
+        </div>
+        <div class="alarm-item">
+          <div class="alarm-sev warn"></div>
+          <div class="alarm-body">
+            <div class="alarm-title">VH-08821 信号强度 < -90dBm</div>
+            <div class="alarm-meta"><span class="alarm-time">01:15前</span><span>终端车辆</span></div>
+          </div>
+          <div class="alarm-badge badge-warn">警告</div>
+        </div>
+        <div class="alarm-item">
+          <div class="alarm-sev warn"></div>
+          <div class="alarm-body">
+            <div class="alarm-title">VH-04492 心跳超时断线</div>
+            <div class="alarm-meta"><span class="alarm-time">03:20前</span><span>接入网关</span></div>
+          </div>
+          <div class="alarm-badge badge-err">断线</div>
+        </div>
+        <div class="alarm-item">
+          <div class="alarm-sev warn"></div>
+          <div class="alarm-body">
+            <div class="alarm-title">消息丢包率超0.1%</div>
+            <div class="alarm-meta"><span class="alarm-time">05:44前</span><span>云平台核心</span></div>
+          </div>
+          <div class="alarm-badge badge-warn">警告</div>
+        </div>
+        <div class="alarm-item">
+          <div class="alarm-sev info"></div>
+          <div class="alarm-body">
+            <div class="alarm-title">新车型 TBOX 协议版本 v2.3</div>
+            <div class="alarm-meta"><span style="color:var(--blue)">08:00前</span><span>协议解析</span></div>
+          </div>
+          <div class="alarm-badge" style="background:rgba(77,168,255,.1);color:var(--blue)">通知</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Link health bars -->
+    <div class="rp-section">
+      <div class="rp-header">
+        <div class="rp-title">📶 链路健康</div>
+      </div>
+      <div class="link-list">
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">车辆 → 网关</div>
+            <div class="link-val" style="color:var(--teal)">99.2%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:99.2%;background:var(--teal)"></div></div>
+        </div>
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">网关 → 边缘</div>
+            <div class="link-val" style="color:var(--teal)">99.8%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:99.8%;background:var(--teal)"></div></div>
+        </div>
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">边缘 Kafka 使用率</div>
+            <div class="link-val" style="color:var(--amber)">89%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:89%;background:var(--amber)"></div></div>
+        </div>
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">云平台 CPU</div>
+            <div class="link-val" style="color:var(--teal)">62%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:62%;background:var(--teal)"></div></div>
+        </div>
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">存储 IOPS</div>
+            <div class="link-val" style="color:var(--teal)">74%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:74%;background:#4da8ff)"></div></div>
+        </div>
+        <div class="link-row">
+          <div class="link-row-header">
+            <div class="link-name">API 响应成功率</div>
+            <div class="link-val" style="color:var(--teal)">99.97%</div>
+          </div>
+          <div class="link-bar-bg"><div class="link-bar-fill" style="width:99.97%;background:var(--teal)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="rp-section" style="flex:1">
+      <div class="rp-header">
+        <div class="rp-title">📋 实时事件流</div>
+      </div>
+      <div class="event-log" id="event-log">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── Clock ───
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('zh-CN', {hour12:false});
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// ─── Sparklines (mini-bar charts) ───
+function initSparkline(id, count=14, color='var(--teal)', maxH=18) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const vals = Array.from({length:count}, () => Math.random());
+  vals.forEach(v => {
+    const b = document.createElement('div');
+    b.className = 'mini-bar';
+    b.style.height = Math.max(2, Math.round(v * maxH)) + 'px';
+    b.style.background = color;
+    el.appendChild(b);
+  });
+}
+initSparkline('spark-lat', 14, 'var(--teal)');
+initSparkline('spark-tput', 14, 'var(--blue)');
+initSparkline('spark-loss', 14, 'var(--amber)');
+initSparkline('spark-parse', 14, 'var(--teal)');
+initSparkline('spark-avail', 14, 'var(--teal)');
+
+// ─── Flow canvas chart ───
+const canvas = document.getElementById('flow-canvas');
+const ctx = canvas.getContext('2d');
+const W = 60; // data points
+let upData   = Array.from({length:W}, () => 30 + Math.random()*40);
+let downData = Array.from({length:W}, () => 10 + Math.random()*20);
+let lossData = Array.from({length:W}, () => Math.random()*3);
+
+function drawFlow() {
+  const w = canvas.offsetWidth * devicePixelRatio;
+  const h = canvas.offsetHeight * devicePixelRatio;
+  canvas.width = w; canvas.height = h;
+  ctx.clearRect(0, 0, w, h);
+  const pw = w / (W - 1);
+
+  function drawLine(data, color, alpha=0.9) {
+    const max = Math.max(...data);
+    ctx.beginPath();
+    data.forEach((v,i) => {
+      const x = i * pw;
+      const y = h - (v / max) * h * 0.85 - h*0.05;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = devicePixelRatio * 1.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Grid
+  ctx.strokeStyle = 'rgba(80,100,140,0.12)';
+  ctx.lineWidth = devicePixelRatio * 0.5;
+  for (let y=0.25; y<1; y+=0.25) {
+    ctx.beginPath(); ctx.moveTo(0, h*y); ctx.lineTo(w, h*y); ctx.stroke();
+  }
+
+  drawLine(upData, '#00e5b0');
+  drawLine(downData, '#4da8ff');
+  drawLine(lossData, '#ffb830', 0.7);
+}
+
+function updateFlow() {
+  upData.shift(); upData.push(25 + Math.random()*50);
+  downData.shift(); downData.push(8 + Math.random()*25);
+  lossData.shift(); lossData.push(Math.random()*4);
+  drawFlow();
+  const tput = Math.round(40000 + Math.random()*15000);
+  document.getElementById('throughput-display').textContent =
+    tput.toLocaleString() + ' msg/s';
+  document.getElementById('m-throughput').textContent =
+    (tput/1000).toFixed(1) + 'k/s';
+}
+
+drawFlow();
+setInterval(updateFlow, 800);
+window.addEventListener('resize', drawFlow);
+
+// ─── Latency gauges ───
+const segments = [
+  {name:'车辆 → 网关', val:12, max:200, color:'#00e5b0'},
+  {name:'网关 → 边缘', val:3,  max:50,  color:'#4da8ff'},
+  {name:'边缘 → 云',   val:8,  max:100, color:'#ffb830'},
+  {name:'云 → 存储',   val:5,  max:50,  color:'#00e5b0'},
+  {name:'存储 → 应用', val:18, max:200, color:'#c084fc'},
+];
+
+const gc = document.getElementById('gauges-container');
+if (gc) {
+  gc.style.display = 'flex';
+  gc.style.flexDirection = 'column';
+  gc.style.gap = '8px';
+  segments.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'link-row';
+    row.innerHTML = `
+      <div class="link-row-header">
+        <div class="link-name">${s.name}</div>
+        <div class="link-val" style="color:${s.color}">${s.val}ms</div>
+      </div>
+      <div class="link-bar-bg">
+        <div class="link-bar-fill" style="width:${Math.min(100,s.val/s.max*100)}%;background:${s.color}"></div>
+      </div>`;
+    gc.appendChild(row);
+  });
+}
+
+// ─── Event log ───
+const events = [
+  {ts:'09:23:41', lvl:'ok',   msg:'VH-17203 心跳正常 RTT=18ms'},
+  {ts:'09:23:40', lvl:'warn', msg:'Kafka lag 超阈值 partition#3'},
+  {ts:'09:23:38', lvl:'info', msg:'VH-22140 上线 接入网关G-04'},
+  {ts:'09:23:35', lvl:'err',  msg:'VH-04492 心跳超时 60s'},
+  {ts:'09:23:33', lvl:'ok',   msg:'边缘节点 E-02 Flink恢复正常'},
+  {ts:'09:23:31', lvl:'info', msg:'协议解析器 v2.3 已部署'},
+  {ts:'09:23:28', lvl:'warn', msg:'VH-09315 丢包率 1.4%'},
+  {ts:'09:23:25', lvl:'ok',   msg:'云平台 Pod 扩容完成 42→44'},
+];
+
+function renderLog(logEl, items) {
+  logEl.innerHTML = '';
+  items.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    div.innerHTML = `<span class="log-ts">${e.ts}</span><span class="log-lvl lvl-${e.lvl}">${e.lvl.toUpperCase()}</span><span class="log-msg">${e.msg}</span>`;
+    logEl.appendChild(div);
+  });
+}
+
+const logEl = document.getElementById('event-log');
+if (logEl) renderLog(logEl, events);
+
+const newEvents = [
+  {msg:'VH-08821 信号弱 RSSI=-92dBm', lvl:'warn'},
+  {msg:'网关 G-02 消息处理正常 12k/s', lvl:'info'},
+  {msg:'VH-31088 协议解析失败 未知帧', lvl:'err'},
+  {msg:'InfluxDB 写入延迟 正常 4ms', lvl:'ok'},
+  {msg:'VH-22140 GPS定位更新', lvl:'info'},
+  {msg:'API 网关 P99 延迟=46ms', lvl:'ok'},
+  {msg:'Flink 检查点完成 12s', lvl:'info'},
+];
+
+let logIdx = 0;
+setInterval(() => {
+  const now = new Date();
+  const ts = now.toLocaleTimeString('zh-CN', {hour12:false});
+  const e = newEvents[logIdx++ % newEvents.length];
+  events.unshift({ts, ...e});
+  if (events.length > 12) events.pop();
+  if (logEl) renderLog(logEl, events);
+}, 2500);
+
+// ─── Dynamic metric updates ───
+setInterval(() => {
+  const latency = 38 + Math.round(Math.random()*20);
+  document.getElementById('m-latency').textContent = latency + 'ms';
+  const loss = (0.05 + Math.random()*0.15).toFixed(2);
+  document.getElementById('m-loss').textContent = loss + '%';
+  const parseRate = (99.8 + Math.random()*0.19).toFixed(2);
+  document.getElementById('m-parse').textContent = parseRate + '%';
+  // Update lat tags in sidebar
+  const lats = [
+    Math.round(8 + Math.random()*15),
+    Math.round(2 + Math.random()*4),
+    Math.round(5 + Math.random()*8),
+    Math.round(3 + Math.random()*6),
+    Math.round(14 + Math.random()*10),
+  ];
+  ['lat1','lat2','lat3','lat4','lat5'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '↓ ' + lats[i] + 'ms';
+  });
+  // fleet stats
+  const online = 2820 + Math.round(Math.random()*40);
+  document.getElementById('s-online').textContent = online.toLocaleString();
+}, 3000);
+</script>
+</body>
+</html>

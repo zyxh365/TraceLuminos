@@ -1,0 +1,11 @@
+global_topology:
+  type: 中国地图链路流向图
+
+  nodes:
+    - APP
+    - 云网关
+    - MQTT集群
+    - 规则引擎
+    - Kafka集群
+    - 车控服务
+    - T-Box集群

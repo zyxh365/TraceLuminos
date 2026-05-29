@@ -1,0 +1,14 @@
+trace_waterfall:
+  type: timeline
+
+  time_axis:
+    start: 0ms
+    end: 1400ms
+
+  spans:
+    - APP
+    - API Gateway
+    - MQTT Broker
+    - Kafka
+    - Vehicle Control
+    - T-Box

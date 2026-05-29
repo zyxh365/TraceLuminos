@@ -9,7 +9,8 @@ export default defineConfig({
     proxy: {
       '/biz':     { target: 'http://172.25.100.136:8000', changeOrigin: true },
       '/core':    { target: 'http://172.25.100.136:8000', changeOrigin: true },
-      '/monitor': { target: 'http://172.25.100.136:8000', changeOrigin: true },
+      // '/monitor': { target: 'http://172.25.100.136:8000', changeOrigin: true },
+      '/monitor': { target: 'http://115.120.86.110:8085', changeOrigin: true },
     },
   },
 })

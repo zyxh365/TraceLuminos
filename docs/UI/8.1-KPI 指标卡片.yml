@@ -1,0 +1,15 @@
+dashboard_kpis:
+  - name: 车辆总数
+    value: 2560688
+
+  - name: T-Box 在线
+    value: 128560
+
+  - name: App 在线用户
+    value: 256560
+
+  - name: 今日指令成功率
+    value: 99.23%
+
+  - name: 今日异常告警
+    value: 128

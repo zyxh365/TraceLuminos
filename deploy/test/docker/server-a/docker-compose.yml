@@ -1,0 +1,72 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP 可观测性平台 — Server A Docker Compose
+# 版本：v5.0
+# 资源: 8C16G，运行 Edge×2 + Central×1
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # Edge Collector × 2 — 接收 OTLP，处理后写入 Kafka
+  # ELB → Server A:4317 → edge-1 / ELB → Server A:4319 → edge-2
+  # ──────────────────────────────────────────────────────────
+  otel-edge-1:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-edge-1
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "13133:13133" # health
+    volumes:
+      - ../otel-edge/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/edge-1-queue:/var/otelcol/queue
+    cpus: 1
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  otel-edge-2:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-edge-2
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+    ports:
+      - "4319:4317"   # OTLP gRPC
+      - "4320:4318"   # OTLP HTTP
+    volumes:
+      - ../otel-edge/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/edge-2-queue:/var/otelcol/queue
+    cpus: 1
+    mem_limit: 2g
+
+  # ──────────────────────────────────────────────────────────
+  # Central Collector × 1 — 从 Kafka 消费，写入 ClickHouse
+  # ──────────────────────────────────────────────────────────
+  otel-central:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-central-1
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+      - .env
+    ports:
+      - "13134:13133" # health
+    volumes:
+      - ../otel-central/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/central-queue:/data/otelcol/storage
+    cpus: 2
+    mem_limit: 4g
+
+
+
+# 部署前先创建数据目录并授权：mkdir -p ./data/{edge-1-queue,edge-2-queue,central-queue} && chmod -R 777 ./data

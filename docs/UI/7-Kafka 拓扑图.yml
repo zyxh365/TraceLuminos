@@ -1,0 +1,24 @@
+kafka_topology:
+  producers:
+    - 规则引擎
+    - 日志服务
+    - 车控服务
+    - 数据采集
+
+  kafka_cluster:
+    brokers:
+      - Broker-1
+      - Broker-2
+      - Broker-3
+
+  topics:
+    - telemetry (50)
+    - event (30)
+    - command (20)
+    - log (10)
+
+  consumer_groups:
+    - 数据服务组
+    - 分析服务组
+    - 告警服务组
+    - 设备服务组

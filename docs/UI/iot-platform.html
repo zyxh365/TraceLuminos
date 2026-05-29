@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>车联网全链路监控平台</title>
+<link rel="stylesheet" href="https://unpkg.com/antd@5.20.6/dist/reset.css">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/antd@5.20.6/dist/antd.js"></script>
+<style>
+  body { margin: 0; background: #0a0e18; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .logo-wrap { height: 56px; display: flex; align-items: center; padding: 0 18px; gap: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06); white-space: nowrap; overflow: hidden; }
+  .page-wrap { padding: 18px; }
+  .ant-card { transition: box-shadow .2s; }
+  .chain-node-g { cursor: pointer; transition: opacity .15s; }
+  .chain-node-g:hover { opacity: .8; }
+  .ant-layout-sider-trigger { background: rgba(255,255,255,0.03) !important; border-top: 1px solid rgba(255,255,255,0.06) !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const {
+  ConfigProvider, Layout, Menu, Card, Row, Col, Statistic,
+  Table, Tag, Badge, Typography, Space, Button, Select, Progress,
+  Tabs, Breadcrumb, Divider, Descriptions, Alert, Form, Input,
+  theme, Avatar, Tooltip, Timeline
+} = antd;
+const { Header, Sider, Content } = Layout;
+const { Title, Text, Paragraph } = Typography;
+
+// ─── 模拟数据 ─────────────────────────────────────────────
+
+const CHAIN_STEPS = [
+  { name:'APP',     svc:'mobile-app',       ts:'10:00:01.123', dur:null,    color:'#4096ff', icon:'📱' },
+  { name:'云网关',  svc:'api-gateway',       ts:'10:00:01.243', dur:'35ms',  color:'#4096ff', icon:'🌐' },
+  { name:'MQTT\nBroker', svc:'emqx-cluster',ts:'10:00:01.278', dur:'12ms',  color:'#36cfc9', icon:'📡' },
+  { name:'规则引擎',svc:'rule-engine',       ts:'10:00:01.290', dur:'45ms',  color:'#36cfc9', icon:'⚡' },
+  { name:'Kafka',   svc:'kafka-cluster',     ts:'10:00:01.335', dur:'98ms',  color:'#9254de', icon:'🔀' },
+  { name:'车控服务',svc:'vehicle-control',   ts:'10:00:01.433', dur:'210ms', color:'#f759ab', warn:true, icon:'🚗' },
+  { name:'T-Box',   svc:'iot-connection',    ts:'10:00:01.643', dur:'420ms', color:'#fa8c16', warn:true, icon:'📦' },
+  { name:'车辆执行',svc:'vehicle-ecu',       ts:'10:00:02.063', dur:'100ms', color:'#fa8c16', icon:'⚙️' },
+  { name:'结果回传',svc:'iot-connection',    ts:'10:00:02.163', dur:'120ms', color:'#36cfc9', icon:'↩️' },
+  { name:'APP',     svc:'mobile-app',        ts:'10:00:02.283', dur:'—',     color:'#4096ff', icon:'📱' },
+];
+
+const SPAN_ROWS = [
+  { key:'1',  span:'APP',        svc:'mobile-app',       start:'10:00:01.123', dur:'120ms', ofs:0,   w:120, ok:true },
+  { key:'2',  span:'云网关',     svc:'api-gateway',       start:'10:00:01.243', dur:'35ms',  ofs:120, w:35,  ok:true },
+  { key:'3',  span:'MQTT Broker',svc:'emqx-cluster',     start:'10:00:01.278', dur:'12ms',  ofs:155, w:12,  ok:true },
+  { key:'4',  span:'规则引擎',   svc:'rule-engine',       start:'10:00:01.290', dur:'45ms',  ofs:167, w:45,  ok:true },
+  { key:'5',  span:'Kafka',      svc:'kafka-cluster',     start:'10:00:01.335', dur:'98ms',  ofs:212, w:98,  ok:true },
+  { key:'6',  span:'车控服务',   svc:'vehicle-control',   start:'10:00:01.433', dur:'210ms', ofs:310, w:130, ok:false },
+  { key:'7',  span:'T-Box',      svc:'iot-connection',    start:'10:00:01.643', dur:'420ms', ofs:440, w:100, ok:true },
+  { key:'8',  span:'车辆执行',   svc:'vehicle-ecu',       start:'10:00:02.063', dur:'100ms', ofs:540, w:80,  ok:true },
+  { key:'9',  span:'结果回传',   svc:'iot-connection',    start:'10:00:02.163', dur:'120ms', ofs:620, w:70,  ok:true },
+  { key:'10', span:'APP回调',    svc:'mobile-app',        start:'10:00:02.283', dur:'—',     ofs:690, w:40,  ok:true },
+];
+
+const SVC_COLORS = { 'mobile-app':'#4096ff','api-gateway':'#52c41a','emqx-cluster':'#36cfc9',
+  'rule-engine':'#fa8c16','kafka-cluster':'#9254de','vehicle-control':'#f759ab',
+  'iot-connection':'#fa541c','vehicle-ecu':'#a0d911' };
+
+const ALERT_DATA = [
+  { key:'1', lvl:'严重', title:'T-Box 连接超时',             src:'粤A-12345',            time:'10:30:12', st:'未处理' },
+  { key:'2', lvl:'严重', title:'Kafka 消息延迟 > 1000ms',    src:'topic: command',       time:'10:29:58', st:'处理中' },
+  { key:'3', lvl:'警告', title:'指令执行失败率超阈值 > 5%',  src:'粤A-88888',            time:'10:29:41', st:'未处理' },
+  { key:'4', lvl:'警告', title:'MQTT 连接数过高',            src:'集群 emqx-1',          time:'10:29:33', st:'未处理' },
+  { key:'5', lvl:'提示', title:'设备心跳超时',               src:'粤A-66666',            time:'10:29:21', st:'已忽略' },
+  { key:'6', lvl:'警告', title:'GPS 数据上报异常',           src:'粤B-55555',            time:'10:28:10', st:'未处理' },
+  { key:'7', lvl:'严重', title:'API 响应超时 > 1000ms',      src:'remote-control-svc',   time:'10:28:05', st:'未处理' },
+];
+
+const DEVICE_DATA = [
+  { key:'1', id:'TBOX10000001', name:'T-Box-0001', type:'T-Box', vin:'LSGA*******1234', region:'广东·广州', st:'在线',  last:'10:30:32' },
+  { key:'2', id:'TBOX10000002', name:'T-Box-0002', type:'T-Box', vin:'LSGA*******1235', region:'广东·深圳', st:'在线',  last:'10:30:31' },
+  { key:'3', id:'TBOX10000003', name:'T-Box-0003', type:'T-Box', vin:'LSGA*******1236', region:'江苏·南京', st:'离线',  last:'10:25:18' },
+  { key:'4', id:'TBOX10000004', name:'T-Box-0004', type:'T-Box', vin:'LSGA*******1237', region:'四川·成都', st:'在线',  last:'10:30:29' },
+  { key:'5', id:'TBOX10000005', name:'T-Box-0005', type:'T-Box', vin:'LSGA*******1238', region:'浙江·杭州', st:'告警',  last:'10:30:28' },
+];
+
+const KAFKA_TOPICS = [
+  { key:'1', topic:'telemetry-topic',       pTps:2560, cTps:2450, parts:24, lag:0    },
+  { key:'2', topic:'remote-command-topic',  pTps:1800, cTps:1820, parts:12, lag:210  },
+  { key:'3', topic:'device-status-topic',   pTps:1200, cTps:1180, parts:12, lag:0    },
+  { key:'4', topic:'alarm-topic',           pTps:980,  cTps:965,  parts:6,  lag:0    },
+  { key:'5', topic:'remote-response-topic', pTps:760,  cTps:730,  parts:6,  lag:0    },
+];
+
+const MQTT_TOPICS = [
+  { key:'1', topic:'tbox/telemetry', subs:8932, pubs:12560, mIn:'15,320/s', mOut:'14,890/s', qos:98.2 },
+  { key:'2', topic:'tbox/status',    subs:8932, pubs:1230,  mIn:'1,230/s',  mOut:'560/s',    qos:97.5 },
+  { key:'3', topic:'tbox/command',   subs:1230, pubs:1460,  mIn:'560/s',    mOut:'540/s',    qos:96.8 },
+  { key:'4', topic:'tbox/response',  subs:1230, pubs:1460,  mIn:'440/s',    mOut:'440/s',    qos:98.1 },
+  { key:'5', topic:'tbox/location',  subs:8932, pubs:8120,  mIn:'310/s',    mOut:'310/s',    qos:97.1 },
+];
+
+// ─── 通用组件 ─────────────────────────────────────────────
+
+const MiniSpark = ({ data, color = '#4096ff', h = 32, w = 130 }) => {
+  const max = Math.max(...data), min = Math.min(...data), r = max - min || 1;
+  const pts = data.map((v, i) => [
+    (i / (data.length - 1)) * w,
+    h - ((v - min) / r) * (h - 4) - 2,
+  ]);
+  const d = pts.map(([x,y],i) => `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  return (
+    <svg width={w} height={h} style={{ overflow:'visible', display:'block' }}>
+      <defs>
+        <linearGradient id={`sg${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0.03"/>
+        </linearGradient>
+      </defs>
+      <path d={d + ` L${w},${h} L0,${h} Z`} fill={`url(#sg${color.replace('#','')})`}/>
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+};
+
+const GanttViz = ({ spans }) => {
+  const total = 750;
+  return (
+    <svg width="100%" height={spans.length * 26 + 24} style={{ display:'block', minWidth: 400 }}>
+      {[0,150,300,450,600,750].map(t => (
+        <g key={t}>
+          <line x1={t/total*100+'%'} y1={0} x2={t/total*100+'%'} y2={spans.length*26+4} stroke="rgba(255,255,255,0.05)" strokeWidth={1}/>
+          <text x={t/total*100+'%'} y={spans.length*26+18} fill="rgba(255,255,255,0.25)" fontSize={9} textAnchor="middle">{t}ms</text>
+        </g>
+      ))}
+      {spans.map((s, i) => {
+        const col = SVC_COLORS[s.svc] || '#4096ff';
+        const x = s.ofs / total * 100;
+        const wPct = Math.max(s.w / total * 100, 0.5);
+        return (
+          <g key={s.key}>
+            <rect x={x+'%'} y={i*26+4} width={wPct+'%'} height={18} fill={col} opacity={s.ok?0.8:1} rx={3}/>
+            {s.w > 60 && <text x={x+'%'} dominantBaseline="middle" dy={i*26+13+''} fill="white" fontSize={9} dx={4}>{s.dur}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+const MetricCard = ({ title, value, color, spark, unit='', precision }) => (
+  <Card size="small" styles={{ body: { padding:'14px 16px' } }}>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+      <div>
+        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:6 }}>{title}</div>
+        <div style={{ fontSize:22, fontWeight:700, color, fontFamily:'monospace', lineHeight:1 }}>
+          {typeof value === 'number' && precision ? value.toFixed(precision) : (typeof value === 'number' ? value.toLocaleString() : value)}{unit}
+        </div>
+      </div>
+      {spark && <MiniSpark data={spark} color={color}/>}
+    </div>
+  </Card>
+);
+
+// ─── 页面：总览驾驶舱 ──────────────────────────────────────
+
+const DashboardPage = () => {
+  const sk = (base, noise) => Array.from({length:14}, (_,i) => base + Math.sin(i*0.8)*noise + i*noise*0.1);
+  return (
+    <div className="page-wrap">
+      <Row gutter={[12,12]}>
+        <Col flex="1"><MetricCard title="车辆总数"    value={2560688} color="#4096ff" spark={sk(150,40)}/></Col>
+        <Col flex="1"><MetricCard title="T-Box 在线" value={128560}  color="#52c41a" spark={sk(100,20)}/></Col>
+        <Col flex="1"><MetricCard title="App 在线用户" value={256560} color="#36cfc9" spark={sk(120,30)}/></Col>
+        <Col flex="1"><MetricCard title="指令成功率" value={99.23} precision={2} unit="%" color="#52c41a" spark={sk(95,2)}/></Col>
+        <Col flex="1"><MetricCard title="今日异常告警" value={128} color="#ff4d4f" spark={sk(60,25)}/></Col>
+      </Row>
+
+      <Card size="small" title="全链路拓扑总览" style={{ marginTop:12 }}
+        extra={<Space size={12}><Badge color="#52c41a" text="健康"/><Badge color="orange" text="异常"/><Badge color="#ff4d4f" text="高危"/></Space>}>
+        <div style={{ overflowX:'auto', padding:'12px 0 4px' }}>
+          <svg width={CHAIN_STEPS.length * 100 + 20} height={100} style={{ minWidth: CHAIN_STEPS.length*100+20 }}>
+            <defs>
+              <marker id="da" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                <path d="M1 1L8 5L1 9" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
+              </marker>
+            </defs>
+            {CHAIN_STEPS.map((s, i) => {
+              const x = i * 100 + 5;
+              return (
+                <g key={i} className="chain-node-g">
+                  <rect x={x} y={10} width={88} height={70} rx={8}
+                    fill={s.warn ? 'rgba(255,77,79,0.12)' : s.color+'1a'}
+                    stroke={s.warn ? '#ff4d4f' : s.color} strokeWidth={1.5}/>
+                  <text x={x+44} y={38} textAnchor="middle" fontSize={18}>{s.icon}</text>
+                  <text x={x+44} y={54} textAnchor="middle" fill="rgba(255,255,255,0.9)" fontSize={9.5} fontWeight="600">{s.name.replace('\n',' ')}</text>
+                  <text x={x+44} y={66} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8.5}>{s.ts.slice(9)}</text>
+                  {s.dur && s.dur !== '—' && <text x={x+44} y={77} textAnchor="middle" fill={s.warn?'#ff4d4f':'#52c41a'} fontSize={8}>{s.dur}</text>}
+                  {i < CHAIN_STEPS.length-1 && (
+                    <line x1={x+88} y1={45} x2={x+100} y2={45} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} markerEnd="url(#da)"/>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div style={{ marginTop:8, display:'flex', alignItems:'center', gap:8, fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+          <span>实时链路 QPS</span>
+          <span style={{ color:'rgba(255,255,255,0.25)' }}>低</span>
+          <Progress percent={72} size="small" showInfo={false} style={{ flex:1, maxWidth:300 }} strokeColor={{ '0%':'#52c41a','100%':'#ff4d4f' }}/>
+          <span style={{ color:'rgba(255,255,255,0.25)' }}>高</span>
+        </div>
+      </Card>
+
+      <Row gutter={12} style={{ marginTop:12 }}>
+        <Col span={8}>
+          <Card size="small" title="指令执行趋势" style={{ height:200 }}>
+            <svg width="100%" height={148} viewBox="0 0 320 148" preserveAspectRatio="none">
+              {[0,37,74,111,148].map(y=><line key={y} x1={0} y1={148-y} x2={320} y2={148-y} stroke="rgba(255,255,255,0.04)" strokeWidth={1}/>)}
+              <polyline points="0,90 32,80 64,72 96,68 128,75 160,60 192,54 224,62 256,48 288,44 320,40" fill="none" stroke="#52c41a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="0,136 32,135 64,138 96,132 128,137 160,130 192,134 224,128 256,133 288,127 320,125" fill="none" stroke="#ff4d4f" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+              <text x={294} y={38} fill="#52c41a" fontSize={9}>成功</text>
+              <text x={294} y={123} fill="#ff4d4f" fontSize={9}>失败</text>
+            </svg>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small" title="链路耗时分布（ms）" style={{ height:200 }}>
+            <div style={{ padding:'8px 0' }}>
+              {[{l:'P50',v:120,max:1280,c:'#52c41a'},{l:'P90',v:480,max:1280,c:'#fa8c16'},{l:'P95',v:780,max:1280,c:'#faad14'},{l:'P99',v:1280,max:1280,c:'#ff4d4f'}].map(p=>(
+                <div key={p.l} style={{ marginBottom:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'rgba(255,255,255,0.55)', marginBottom:3 }}>
+                    <span>{p.l}</span><span style={{ color:p.c }}>{p.v}ms</span>
+                  </div>
+                  <Progress percent={Math.round(p.v/p.max*100)} size="small" showInfo={false} strokeColor={p.c}/>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small" title="错误类型 TOP5" style={{ height:200 }}>
+            <div style={{ padding:'4px 0' }}>
+              {[{t:'超时',p:32.6},{t:'设备离线',p:21.3},{t:'指令拒绝',p:18.7},{t:'服务异常',p:15.2},{t:'其他',p:12.2}].map(e=>(
+                <div key={e.t} style={{ marginBottom:8 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'rgba(255,255,255,0.55)', marginBottom:3 }}>
+                    <span>{e.t}</span><span style={{ color:'rgba(255,255,255,0.35)' }}>{e.p}%</span>
+                  </div>
+                  <Progress percent={e.p} size="small" showInfo={false} strokeColor="#4096ff"/>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small" title="实时告警" style={{ marginTop:12 }}
+        extra={<Tag color="error">128 条活跃</Tag>}>
+        <Table size="small" dataSource={ALERT_DATA} pagination={false} columns={[
+          { title:'级别', dataIndex:'lvl', width:70, render: v=><Tag color={v==='严重'?'error':v==='警告'?'warning':'processing'}>{v}</Tag> },
+          { title:'告警内容', dataIndex:'title' },
+          { title:'影响范围', dataIndex:'src', width:150, render:v=><Text type="secondary" style={{fontSize:11}}>{v}</Text> },
+          { title:'时间', dataIndex:'time', width:75 },
+          { title:'状态', dataIndex:'st', width:80, render:v=><Tag color={v==='未处理'?'error':v==='处理中'?'warning':'default'}>{v}</Tag> },
+          { title:'操作', width:80, render:()=><Space size={0}><Button type="link" size="small">处理</Button></Space> },
+        ]}/>
+      </Card>
+    </div>
+  );
+};
+
+// ─── 页面：云控链路 ─────────────────────────────────────────
+
+const CloudChainPage = () => {
+  const [sel, setSel] = React.useState(SPAN_ROWS[5]);
+  return (
+    <div className="page-wrap">
+      <Alert type="success" style={{ marginBottom:12, fontSize:12 }}
+        message={<Space wrap size={20}>
+          <span>运控指令ID <Text code style={{fontSize:11}}>CMD20250520100123456</Text></span>
+          <span>类型 <Tag color="blue">车门解锁</Tag></span>
+          <span>发起 <Text type="secondary">APP IOS 1.2.3</Text></span>
+          <span>目标 <Tag>粤A-12345</Tag></span>
+          <span>状态 <Tag color="success">✓ 成功</Tag></span>
+          <span>总耗时 <Text style={{color:'#52c41a',fontWeight:600}}>1283ms</Text></span>
+        </Space>}/>
+
+      <Card size="small" title="云控远控链路监控" style={{ marginBottom:12 }}>
+        <div style={{ overflowX:'auto', padding:'10px 0 6px' }}>
+          <svg width={CHAIN_STEPS.length*102+20} height={92} style={{ minWidth:CHAIN_STEPS.length*102+20 }}>
+            <defs>
+              <marker id="ca" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                <path d="M1 1L8 5L1 9" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
+              </marker>
+            </defs>
+            {CHAIN_STEPS.map((s, i) => {
+              const x = i*102+4;
+              return (
+                <g key={i} className="chain-node-g" onClick={()=>setSel(SPAN_ROWS[i]||SPAN_ROWS[5])}>
+                  <rect x={x} y={8} width={90} height={74} rx={8}
+                    fill={s.warn?'rgba(255,77,79,0.1)':s.color+'18'}
+                    stroke={s.warn?'#ff4d4f':s.color} strokeWidth={s.warn?2:1.5}/>
+                  <text x={x+45} y={33} textAnchor="middle" fontSize={17}>{s.icon}</text>
+                  <text x={x+45} y={50} textAnchor="middle" fill="rgba(255,255,255,0.92)" fontSize={9.5} fontWeight="600">{s.name.replace('\n',' ')}</text>
+                  <text x={x+45} y={62} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8}>{s.ts.slice(9)}</text>
+                  {s.dur && s.dur !== '—' && <text x={x+45} y={74} textAnchor="middle" fill={s.warn?'#ff4d4f':'#52c41a'} fontSize={8} fontWeight="500">{s.dur}</text>}
+                  {i < CHAIN_STEPS.length-1 && (
+                    <line x1={x+90} y1={45} x2={x+102} y2={45} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} markerEnd="url(#ca)"/>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </Card>
+
+      <Row gutter={12}>
+        <Col span={16}>
+          <Card size="small" title="链路追踪详情">
+            <Tabs size="small" defaultActiveKey="detail" items={[
+              { key:'detail', label:'链路详情', children: (
+                <Row gutter={8}>
+                  <Col span={14}>
+                    <Table size="small" dataSource={SPAN_ROWS} pagination={false}
+                      rowClassName={r => r.ok ? '' : 'ant-table-row-selected'}
+                      onRow={r=>({ onClick:()=>setSel(r), style:{ cursor:'pointer' } })}
+                      columns={[
+                        { title:'Span',    dataIndex:'span', width:100 },
+                        { title:'服务',    dataIndex:'svc',  width:130, render:v=><Text code style={{fontSize:10}}>{v}</Text> },
+                        { title:'开始时间',dataIndex:'start',width:100, render:v=><span style={{fontSize:10}}>{v}</span> },
+                        { title:'耗时',    dataIndex:'dur',  width:65,  render:v=><span style={{color:parseInt(v)>200?'#ff4d4f':'#52c41a'}}>{v}</span> },
+                        { title:'',        dataIndex:'ok',   width:32,  render:v=><Badge status={v?'success':'warning'}/> },
+                      ]}/>
+                  </Col>
+                  <Col span={10}>
+                    <div style={{ overflowX:'auto' }}>
+                      <GanttViz spans={SPAN_ROWS}/>
+                    </div>
+                  </Col>
+                </Row>
+              )},
+              { key:'log',  label:'日志', children:<Text type="secondary" style={{fontSize:12}}>暂无更多日志</Text> },
+              { key:'body', label:'消息体', children:<Text type="secondary" style={{fontSize:12}}>查看原始消息体</Text> },
+            ]}/>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small" title="基本信息">
+            <Descriptions column={1} size="small" labelStyle={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>
+              <Descriptions.Item label="Trace ID">
+                <Text code copyable style={{fontSize:10}}>1e6a8c5f3b2d4e7a9c0b</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="服务"><Text style={{fontSize:12}}>{sel?.svc}</Text></Descriptions.Item>
+              <Descriptions.Item label="Span"><Text style={{fontSize:12}}>{sel?.span}</Text></Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={sel?.ok?'success':'warning'}>{sel?.ok?'成功':'慢调用'}</Tag></Descriptions.Item>
+              <Descriptions.Item label="开始时间"><Text style={{fontSize:11}}>{sel?.start}</Text></Descriptions.Item>
+              <Descriptions.Item label="耗时"><Text style={{fontSize:12,color:parseInt(sel?.dur)>200?'#ff4d4f':'#52c41a'}}>{sel?.dur}</Text></Descriptions.Item>
+            </Descriptions>
+            <Divider style={{margin:'8px 0'}}/>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:6}}>Tags</div>
+            {[['cmdType','unlock_door'],['vin','LSGA****1234'],['userId','user_10086']].map(([k,v])=>(
+              <div key={k} style={{display:'flex',gap:10,padding:'3px 0'}}>
+                <Text type="secondary" style={{fontSize:11,minWidth:64}}>{k}</Text>
+                <Text style={{fontSize:11}}>{v}</Text>
+              </div>
+            ))}
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+};
+
+// ─── 页面：服务拓扑 ─────────────────────────────────────────
+
+const TopologyPage = () => {
+  const nodes = [
+    { id:'app',   x:40,  y:160, l:'APP',      sub:'QPS 2,560', c:'#4096ff', ic:'📱' },
+    { id:'gw',    x:170, y:160, l:'API 网关',  sub:'2,560·120ms',c:'#52c41a',ic:'🌐' },
+    { id:'auth',  x:310, y:60,  l:'认证服务',  sub:'590 c/m',   c:'#52c41a', ic:'🔐' },
+    { id:'vehicle',x:310,y:160, l:'车控服务',  sub:'QPS 660',   c:'#f759ab', ic:'🚗' },
+    { id:'kafka', x:450, y:160, l:'Kafka 集群',sub:'TPS 8,560', c:'#9254de', ic:'🔀' },
+    { id:'mqtt',  x:590, y:90,  l:'MQTT Broker',sub:'12,560连接',c:'#36cfc9',ic:'📡' },
+    { id:'user',  x:310, y:270, l:'用户服务',  sub:'450 c/m',   c:'#52c41a', ic:'👤' },
+    { id:'influx',x:590, y:230, l:'InfluxDB',  sub:'QPS 120',   c:'#fa8c16', ic:'📊' },
+    { id:'tbox',  x:730, y:160, l:'T-Box 集群',sub:'QPS 90',    c:'#fa8c16', ic:'📦' },
+  ];
+  const edges = [
+    ['app','gw','330 c/m','15ms'],['gw','auth','1.7k/m','12ms'],
+    ['gw','vehicle','1.8k/m','35ms'],['gw','user','580/m','10ms'],
+    ['vehicle','kafka','5.5k tps','35ms'],['kafka','influx','10k','5ms'],
+    ['kafka','mqtt','100/m','30ms'],['mqtt','tbox','450/m','20ms'],
+  ];
+  const gn = id => nodes.find(n=>n.id===id);
+  return (
+    <div className="page-wrap">
+      <Card size="small" title="服务拓扑图"
+        extra={<Space><Select size="small" defaultValue="prod" options={[{v:'prod',label:'生产环境'}]}/><Button size="small" type="primary">全局服务</Button></Space>}>
+        <Space size={16} style={{marginBottom:10}}>
+          {[['服务','#52c41a'],['中间件','#9254de'],['存储','#fa8c16']].map(([l,c])=>(
+            <Space key={l} size={5}><div style={{width:9,height:9,borderRadius:'50%',background:c}}/><Text style={{fontSize:11}}>{l}</Text></Space>
+          ))}
+        </Space>
+        <div style={{ overflowX:'auto' }}>
+          <svg width={860} height={340} style={{ minWidth:860 }}>
+            <defs>
+              <marker id="te" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                <path d="M1 1L8 5L1 9" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5"/>
+              </marker>
+            </defs>
+            {edges.map(([f,t,lb,dur],i)=>{
+              const fn=gn(f), tn=gn(t); if(!fn||!tn) return null;
+              const mx=(fn.x+tn.x)/2+32, my=(fn.y+tn.y)/2+24;
+              return (
+                <g key={i}>
+                  <line x1={fn.x+32} y1={fn.y+26} x2={tn.x+32} y2={tn.y+26}
+                    stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} markerEnd="url(#te)"/>
+                  <text x={mx} y={my-6} fill="rgba(255,255,255,0.3)" fontSize={9} textAnchor="middle">{lb}</text>
+                  <text x={mx} y={my+4} fill="rgba(255,255,255,0.2)" fontSize={8} textAnchor="middle">{dur}</text>
+                </g>
+              );
+            })}
+            {nodes.map(n=>(
+              <g key={n.id} className="chain-node-g">
+                <circle cx={n.x+32} cy={n.y+26} r={30} fill={n.c+'18'} stroke={n.c} strokeWidth={1.5}/>
+                <text x={n.x+32} y={n.y+20} textAnchor="middle" fontSize={16}>{n.ic}</text>
+                <text x={n.x+32} y={n.y+34} textAnchor="middle" fill="rgba(255,255,255,0.9)" fontSize={9.5} fontWeight="600">{n.l}</text>
+                <text x={n.x+32} y={n.y+44} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8}>{n.sub}</text>
+              </g>
+            ))}
+          </svg>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── 页面：链路追踪 ─────────────────────────────────────────
+
+const TracePage = () => {
+  const traces = [
+    {id:'b1df23c9...', svc:'remote-control-service', dur:'2.34s', spans:18, err:0,  t:'10:30:22'},
+    {id:'c4ef56a8...', svc:'vehicle-query-service',  dur:'1.21s', spans:12, err:1,  t:'10:30:18'},
+    {id:'d7ab89b2...', svc:'remote-control-service', dur:'875ms', spans:8,  err:0,  t:'10:30:16'},
+    {id:'e1cd23f0...', svc:'alarm-service',          dur:'120ms', spans:6,  err:0,  t:'10:30:15'},
+    {id:'f5ef9012...', svc:'device-shadow-service',  dur:'980ms', spans:14, err:2,  t:'10:30:14'},
+  ];
+  const [sel, setSel] = React.useState(traces[0]);
+  return (
+    <div className="page-wrap">
+      <Row gutter={12}>
+        <Col span={9}>
+          <Card size="small" title={`调用链列表（${traces.length}）`}
+            extra={<Select size="small" defaultValue="remote-control-service" style={{width:160}}
+              options={traces.map(t=>({value:t.svc,label:t.svc}))}/>}>
+            {traces.map(tr=>(
+              <div key={tr.id} onClick={()=>setSel(tr)}
+                style={{padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,0.05)',cursor:'pointer',
+                  background:sel?.id===tr.id?'rgba(64,150,255,0.06)':'transparent',
+                  borderRadius:4,paddingLeft:sel?.id===tr.id?6:0,transition:'all .15s'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                  <Text code style={{fontSize:10,color:'#4096ff'}}>{tr.id}</Text>
+                  <Text style={{fontSize:11,color:tr.err>0?'#ff4d4f':'#52c41a',fontFamily:'monospace'}}>{tr.dur}</Text>
+                </div>
+                <div style={{display:'flex',gap:12,fontSize:10,color:'rgba(255,255,255,0.35)'}}>
+                  <span>Spans: {tr.spans}</span>
+                  <span style={{color:tr.err>0?'#ff4d4f':'inherit'}}>错误: {tr.err}</span>
+                  <span style={{marginLeft:'auto'}}>{tr.t}</span>
+                </div>
+              </div>
+            ))}
+          </Card>
+        </Col>
+        <Col span={15}>
+          <Card size="small" title="Trace 详情"
+            extra={<Space><Tag color="success">总耗时 {sel?.dur}</Tag><Tag>{sel?.spans} Spans</Tag><Tag color={sel?.err?'error':'success'}>错误 {sel?.err}</Tag></Space>}>
+            <div style={{marginBottom:14}}>
+              {[
+                {n:'remote-control-service', d:'2.34s', ofs:0,  p:100, c:'#4096ff'},
+                {n:'Authorize Interceptor',   d:'1.31s', ofs:4,  p:56,  c:'#52c41a'},
+                {n:'Command Validate',        d:'875ms', ofs:14, p:37,  c:'#52c41a'},
+                {n:'Vehicle Check',           d:'620ms', ofs:24, p:26,  c:'#fa8c16'},
+                {n:'Kafka Producer',          d:'210ms', ofs:34, p:9,   c:'#9254de'},
+                {n:'Result Report',           d:'120ms', ofs:44, p:5,   c:'#36cfc9'},
+                {n:'MQTT Broker',             d:'420ms', ofs:20, p:18,  c:'#36cfc9'},
+                {n:'T-Box (device)',          d:'100ms', ofs:60, p:4,   c:'#fa8c16'},
+              ].map((s,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',marginBottom:5,gap:8}}>
+                  <div style={{width:178,fontSize:11,color:'rgba(255,255,255,0.7)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{s.n}</div>
+                  <div style={{flex:1,background:'rgba(255,255,255,0.05)',borderRadius:2,height:18,position:'relative'}}>
+                    <div style={{position:'absolute',left:s.ofs+'%',width:s.p+'%',height:'100%',background:s.c,opacity:.82,borderRadius:2}}/>
+                    {s.p>8 && <span style={{position:'absolute',left:s.ofs+'%',paddingLeft:4,fontSize:10,color:'white',lineHeight:'18px'}}>{s.d}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Divider style={{margin:'8px 0'}}/>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>
+              <div style={{fontWeight:600,marginBottom:6,color:'rgba(255,255,255,0.6)'}}>日志</div>
+              {['10:30:22 Authorize success','10:30:22 Command validate success','10:30:22 Vehicle online','10:30:22 Send command to device'].map((l,i)=>(
+                <div key={i} style={{padding:'3px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',fontFamily:'monospace',fontSize:11}}>{l}</div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+};
+
+// ─── 页面：Kafka 监控 ──────────────────────────────────────
+
+const KafkaPage = () => (
+  <div className="page-wrap">
+    <Row gutter={[12,12]}>
+      {[{l:'集群状态',v:'健康',c:'#52c41a'},{l:'Broker 数',v:3,c:'#4096ff'},{l:'Topic 数',v:156,c:'#4096ff'},
+        {l:'分区数',v:420,c:'#36cfc9'},{l:'生产 TPS',v:'8,560',c:'#9254de'},{l:'消费 TPS',v:'8,120',c:'#f759ab'},
+        {l:'集群延迟',v:'35ms',c:'#52c41a'},{l:'失效副本',v:0,c:'#52c41a'}].map(s=>(
+        <Col key={s.l} flex="1">
+          <Card size="small" styles={{body:{padding:'12px 14px'}}}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:5}}>{s.l}</div>
+            <div style={{fontSize:20,fontWeight:700,color:s.c,fontFamily:'monospace'}}>{typeof s.v==='number'?s.v.toLocaleString():s.v}</div>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+    <Row gutter={12} style={{marginTop:12}}>
+      <Col span={12}>
+        <Card size="small" title="集群流量 — 生产 TPS vs 消费 TPS">
+          <svg width="100%" height={120} viewBox="0 0 400 120" preserveAspectRatio="none">
+            {[0,40,80,120].map(y=><line key={y} x1={0} y1={120-y} x2={400} y2={120-y} stroke="rgba(255,255,255,0.04)" strokeWidth={1}/>)}
+            <polyline points="0,65 40,58 80,55 120,48 160,45 200,52 240,42 280,38 320,44 360,36 400,33" fill="none" stroke="#52c41a" strokeWidth={2} strokeLinecap="round"/>
+            <polyline points="0,72 40,65 80,63 120,56 160,54 200,60 240,50 280,46 320,52 360,44 400,40" fill="none" stroke="#4096ff" strokeWidth={2} strokeLinecap="round" strokeDasharray="4,2"/>
+            <text x={370} y={31} fill="#52c41a" fontSize={9}>生产</text>
+            <text x={370} y={38} fill="#4096ff" fontSize={9}>消费</text>
+          </svg>
+        </Card>
+      </Col>
+      <Col span={12}>
+        <Card size="small" title="Broker 状态">
+          <Table size="small" pagination={false} dataSource={[
+            {key:'0',id:0,st:'健康',cpu:32,mem:45,disk:60,net:'40/30 Mbps'},
+            {key:'1',id:1,st:'健康',cpu:28,mem:42,disk:58,net:'40/26 Mbps'},
+            {key:'2',id:2,st:'健康',cpu:35,mem:48,disk:62,net:'40/28 Mbps'},
+          ]} columns={[
+            {title:'#',dataIndex:'id',width:28},
+            {title:'状态',dataIndex:'st',render:v=><Badge status="success" text={v}/>},
+            {title:'CPU',dataIndex:'cpu',render:v=><><Progress percent={v} size="small" showInfo={false} style={{width:56,display:'inline-block'}}/> <span style={{fontSize:10}}>{v}%</span></>},
+            {title:'内存',dataIndex:'mem',render:v=><><Progress percent={v} size="small" showInfo={false} style={{width:56,display:'inline-block'}}/> <span style={{fontSize:10}}>{v}%</span></>},
+            {title:'网络 I/O',dataIndex:'net',render:v=><span style={{fontSize:10}}>{v}</span>},
+          ]}/>
+        </Card>
+      </Col>
+    </Row>
+    <Card size="small" title="Topic TOP5（按流量）" style={{marginTop:12}}>
+      <Table size="small" pagination={false} dataSource={KAFKA_TOPICS} columns={[
+        {title:'Topic',dataIndex:'topic',render:v=><Text code style={{fontSize:11}}>{v}</Text>},
+        {title:'生产 TPS',dataIndex:'pTps',render:v=><span style={{color:'#52c41a'}}>{v.toLocaleString()}</span>},
+        {title:'消费 TPS',dataIndex:'cTps',render:v=><span style={{color:'#4096ff'}}>{v.toLocaleString()}</span>},
+        {title:'分区数',dataIndex:'parts'},
+        {title:'消费积压',dataIndex:'lag',render:v=><Tag color={v>0?'warning':'success'}>{v}</Tag>},
+        {title:'操作',render:()=><Button type="link" size="small">详情</Button>},
+      ]}/>
+    </Card>
+  </div>
+);
+
+// ─── 页面：MQTT 监控 ──────────────────────────────────────
+
+const MqttPage = () => (
+  <div className="page-wrap">
+    <Row gutter={[12,12]}>
+      {[{l:'Broker 状态',v:'健康',c:'#52c41a'},{l:'连接数',v:'12,560',c:'#4096ff'},{l:'在线设备',v:'8,932',c:'#36cfc9'},
+        {l:'订阅主题数',v:'3,560',c:'#9254de'},{l:'消息流入',v:'15,320/s',c:'#52c41a'},{l:'消息流出',v:'14,890/s',c:'#52c41a'},
+        {l:'丢弃消息',v:'120/s',c:'#ff4d4f'}].map(s=>(
+        <Col key={s.l} flex="1">
+          <Card size="small" styles={{body:{padding:'12px 14px'}}}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:5}}>{s.l}</div>
+            <div style={{fontSize:s.v.length>7?15:20,fontWeight:700,color:s.c,fontFamily:'monospace'}}>{s.v}</div>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+    <Row gutter={12} style={{marginTop:12}}>
+      <Col span={14}>
+        <Card size="small" title="主题 TOP10（按流量）">
+          <Table size="small" pagination={false} dataSource={MQTT_TOPICS} columns={[
+            {title:'主题',dataIndex:'topic',render:v=><Text code style={{fontSize:10}}>{v}</Text>},
+            {title:'订阅',dataIndex:'subs',render:v=>v.toLocaleString()},
+            {title:'发布',dataIndex:'pubs',render:v=>v.toLocaleString()},
+            {title:'消息流入',dataIndex:'mIn',render:v=><span style={{color:'#52c41a'}}>{v}</span>},
+            {title:'消息流出',dataIndex:'mOut',render:v=><span style={{color:'#4096ff'}}>{v}</span>},
+            {title:'QoS0',dataIndex:'qos',render:v=><><Progress percent={v} size="small" showInfo={false} style={{width:48,display:'inline-block'}}/> <span style={{fontSize:10}}>{v}%</span></>},
+          ]}/>
+        </Card>
+      </Col>
+      <Col span={10}>
+        <Card size="small" title="连接质量分布" style={{marginBottom:12}}>
+          {[{l:'优（>90%）',p:68.2,c:'#52c41a'},{l:'良（70-90%）',p:21.3,c:'#4096ff'},{l:'中（40-70%）',p:7.4,c:'#fa8c16'},{l:'差（<40%）',p:3.1,c:'#ff4d4f'}].map(i=>(
+            <div key={i.l} style={{marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'rgba(255,255,255,0.55)',marginBottom:3}}>
+                <span>{i.l}</span><span style={{color:i.c}}>{i.p}%</span>
+              </div>
+              <Progress percent={i.p} size="small" showInfo={false} strokeColor={i.c}/>
+            </div>
+          ))}
+        </Card>
+        <Card size="small" title="消息流量趋势">
+          <svg width="100%" height={80} viewBox="0 0 240 80" preserveAspectRatio="none">
+            <polyline points="0,60 24,55 48,50 72,44 96,48 120,40 144,36 168,42 192,34 216,30 240,26" fill="none" stroke="#52c41a" strokeWidth={2} strokeLinecap="round"/>
+            <polyline points="0,65 24,62 48,58 72,53 96,56 120,50 144,46 168,52 192,44 216,40 240,37" fill="none" stroke="#4096ff" strokeWidth={2} strokeLinecap="round" strokeDasharray="3,2"/>
+          </svg>
+        </Card>
+      </Col>
+    </Row>
+  </div>
+);
+
+// ─── 页面：设备管理 ────────────────────────────────────────
+
+const DevicePage = () => (
+  <div className="page-wrap">
+    <Card size="small" style={{marginBottom:12}}>
+      <Space wrap>
+        <Select size="small" defaultValue="all" style={{width:100}} options={[{value:'all',label:'全部类型'},{value:'tbox',label:'T-Box'},{value:'sensor',label:'传感器'}]}/>
+        <Select size="small" defaultValue="all" style={{width:100}} options={[{value:'all',label:'全部状态'},{value:'online',label:'在线'},{value:'offline',label:'离线'}]}/>
+        <Input.Search size="small" placeholder="搜索设备ID / VIN..." style={{width:220}} allowClear/>
+        <Button size="small" type="primary">搜索</Button>
+        <Button size="small">重置</Button>
+        <Button size="small" type="primary" ghost style={{marginLeft:8}}>+ 新增设备</Button>
+        <Button size="small">批量导出</Button>
+      </Space>
+    </Card>
+    <Card size="small" title={<span>设备列表 <Text type="secondary" style={{fontSize:12}}>共 8,932 条</Text></span>}>
+      <Table size="small" dataSource={DEVICE_DATA}
+        columns={[
+          {title:'设备ID',dataIndex:'id',render:v=><Text code style={{fontSize:11}}>{v}</Text>},
+          {title:'设备名称',dataIndex:'name'},
+          {title:'设备类型',dataIndex:'type',render:v=><Tag>{v}</Tag>},
+          {title:'VIN',dataIndex:'vin',render:v=><Text code style={{fontSize:10}}>{v}</Text>},
+          {title:'所属区域',dataIndex:'region'},
+          {title:'状态',dataIndex:'st',render:v=><Badge status={v==='在线'?'success':v==='告警'?'warning':'default'} text={v}/>},
+          {title:'最后上线',dataIndex:'last',render:v=><span style={{fontSize:11}}>2025-05-20 {v}</span>},
+          {title:'操作',render:()=>(
+            <Space size={0}>
+              <Button type="link" size="small">查看</Button>
+              <Button type="link" size="small">追踪</Button>
+              <Button type="link" size="small" danger>删除</Button>
+            </Space>
+          )},
+        ]}
+        pagination={{pageSize:5,total:8932,showTotal:t=>`共 ${t} 条`,size:'small',showSizeChanger:false}}/>
+    </Card>
+  </div>
+);
+
+// ─── 页面：告警中心 ────────────────────────────────────────
+
+const AlertPage = () => (
+  <div className="page-wrap">
+    <Card size="small" style={{marginBottom:12}}>
+      <Space wrap>
+        <Select size="small" defaultValue="all" style={{width:100}} options={[{value:'all',label:'全部级别'},{value:'crit',label:'严重'},{value:'warn',label:'警告'},{value:'info',label:'提示'}]}/>
+        <Select size="small" defaultValue="active" style={{width:100}} options={[{value:'all',label:'全部状态'},{value:'active',label:'未处理'},{value:'ack',label:'处理中'}]}/>
+        <Select size="small" defaultValue="24h"  style={{width:100}} options={[{value:'1h',label:'近1小时'},{value:'24h',label:'近24小时'},{value:'7d',label:'近7天'}]}/>
+        <Input.Search size="small" placeholder="搜索告警内容..." style={{width:220}} allowClear/>
+        <Button size="small" type="primary">搜索</Button>
+        <Button size="small">重置</Button>
+      </Space>
+    </Card>
+    <Card size="small" title={<Space><span>告警列表</span><Tag color="error">128 未处理</Tag><Tag color="warning">56 处理中</Tag></Space>}
+      extra={<Space><Button size="small">批量确认</Button><Button size="small" danger>批量忽略</Button></Space>}>
+      <Table size="small" dataSource={ALERT_DATA}
+        columns={[
+          {title:'级别',dataIndex:'lvl',width:75,render:v=><Tag color={v==='严重'?'error':v==='警告'?'warning':'processing'}>{v}</Tag>},
+          {title:'告警内容',dataIndex:'title'},
+          {title:'告警来源',dataIndex:'src',width:170,render:v=><Text code style={{fontSize:11}}>{v}</Text>},
+          {title:'触发规则',width:140,render:()=><span style={{fontSize:11,color:'rgba(255,255,255,0.35)'}}>阈值规则触发</span>},
+          {title:'状态',dataIndex:'st',width:80,render:v=><Tag color={v==='未处理'?'error':v==='处理中'?'warning':'default'}>{v}</Tag>},
+          {title:'告警时间',dataIndex:'time',width:78},
+          {title:'操作',width:110,render:()=>(
+            <Space size={0}>
+              <Button type="link" size="small">处理</Button>
+              <Button type="link" size="small">忽略</Button>
+              <Button type="link" size="small">详情</Button>
+            </Space>
+          )},
+        ]}
+        pagination={{pageSize:10,total:184,showTotal:t=>`共 ${t} 条`,size:'small',showSizeChanger:false}}/>
+    </Card>
+  </div>
+);
+
+// ─── 页面：报表分析 ────────────────────────────────────────
+
+const ReportPage = () => (
+  <div className="page-wrap">
+    <Row gutter={[12,12]}>
+      {[{l:'云控指令总计',v:'12,560次',sub:'较昨日 ↑2.1%',c:'#4096ff'},{l:'指令成功率',v:'98.23%',sub:'较昨日 ↑1.0%',c:'#52c41a'},
+        {l:'设备在线率',v:'92.45%',sub:'较昨日 ↑1.8%',c:'#36cfc9'},{l:'今日告警总计',v:'128次',sub:'较昨日 ↓8.2%',c:'#ff4d4f'}].map(s=>(
+        <Col key={s.l} span={6}>
+          <Card size="small" styles={{body:{padding:'16px'}}}>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:6}}>{s.l}</div>
+            <div style={{fontSize:26,fontWeight:700,color:s.c,fontFamily:'monospace'}}>{s.v}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.3)',marginTop:4}}>{s.sub}</div>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+    <Row gutter={12} style={{marginTop:12}}>
+      <Col span={14}>
+        <Card size="small" title="云控指令趋势">
+          <svg width="100%" height={150} viewBox="0 0 480 150" preserveAspectRatio="none">
+            {[0,37,74,111,150].map(y=><line key={y} x1={0} y1={150-y} x2={480} y2={150-y} stroke="rgba(255,255,255,0.04)" strokeWidth={1}/>)}
+            <polyline points="0,100 48,88 96,80 144,85 192,68 240,74 288,58 336,63 384,48 432,53 480,42" fill="none" stroke="#52c41a" strokeWidth={2} strokeLinecap="round"/>
+            <polyline points="0,138 48,136 96,140 144,133 192,137 240,130 288,135 336,128 384,133 432,126 480,122" fill="none" stroke="#ff4d4f" strokeWidth={2} strokeLinecap="round"/>
+            <text x={450} y={40} fill="#52c41a" fontSize={9}>成功</text>
+            <text x={450} y={120} fill="#ff4d4f" fontSize={9}>失败</text>
+          </svg>
+        </Card>
+      </Col>
+      <Col span={10}>
+        <Card size="small" title="指令类型分布">
+          {[{t:'解锁',p:35.6,c:'#4096ff'},{t:'上锁',p:28.3,c:'#52c41a'},{t:'寻车',p:18.2,c:'#36cfc9'},{t:'启动',p:9.8,c:'#fa8c16'},{t:'其他',p:8.1,c:'#8c8c8c'}].map(i=>(
+            <div key={i.t} style={{marginBottom:9}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'rgba(255,255,255,0.6)',marginBottom:3}}>
+                <Space size={5}><div style={{width:8,height:8,borderRadius:'50%',background:i.c}}/><span>{i.t}</span></Space>
+                <span style={{color:i.c}}>{i.p}%</span>
+              </div>
+              <Progress percent={i.p} size="small" showInfo={false} strokeColor={i.c}/>
+            </div>
+          ))}
+        </Card>
+      </Col>
+    </Row>
+  </div>
+);
+
+// ─── 页面：配置管理 ────────────────────────────────────────
+
+const ConfigPage = () => {
+  const [cat, setCat] = React.useState('sys');
+  const configs = {
+    sys: [
+      {key:'1',name:'system.name',val:'车联网全链路监控平台',desc:'系统名称'},
+      {key:'2',name:'system.version',val:'v1.0.0',desc:'系统版本'},
+      {key:'3',name:'system.timezone',val:'Asia/Shanghai',desc:'时区设置'},
+      {key:'4',name:'system.language',val:'zh-CN',desc:'语言设置'},
+      {key:'5',name:'system.login.expire',val:'24h',desc:'登录过期时间'},
+    ],
+    svc: [
+      {key:'1',name:'service.trace.enable',val:'true',desc:'链路追踪开关'},
+      {key:'2',name:'service.timeout.default',val:'5000ms',desc:'默认超时时间'},
+    ],
+    alert: [
+      {key:'1',name:'alert.latency.threshold',val:'1000ms',desc:'延迟告警阈值'},
+      {key:'2',name:'alert.error.rate',val:'5%',desc:'错误率告警阈值'},
+    ],
+  };
+  return (
+    <div className="page-wrap">
+      <Row gutter={12}>
+        <Col span={5}>
+          <Card size="small" title="配置分类" styles={{body:{padding:0}}}>
+            <Menu mode="inline" selectedKeys={[cat]} onSelect={({key})=>setCat(key)}
+              style={{border:'none'}}
+              items={[
+                {key:'sys',label:'系统配置'},{key:'svc',label:'服务配置'},
+                {key:'mw',label:'中间件配置'},{key:'alert',label:'告警配置'},{key:'perm',label:'权限配置'}
+              ]}/>
+          </Card>
+        </Col>
+        <Col span={19}>
+          <Card size="small" title="基础配置"
+            extra={<Space><Button size="small" type="primary">保存</Button><Button size="small">重置</Button></Space>}>
+            <Table size="small" pagination={false} dataSource={configs[cat]||configs.sys}
+              columns={[
+                {title:'配置项',dataIndex:'name',render:v=><Text code style={{fontSize:11}}>{v}</Text>},
+                {title:'配置值',dataIndex:'val',render:v=><Text style={{fontSize:12,color:'#4096ff'}}>{v}</Text>},
+                {title:'描述',dataIndex:'desc',render:v=><Text type="secondary" style={{fontSize:11}}>{v}</Text>},
+                {title:'操作',render:()=><Button type="link" size="small">编辑</Button>},
+              ]}/>
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+};
+
+// ─── 导航配置 ──────────────────────────────────────────────
+
+const NAV = [
+  { key:'dashboard',  label:'总览驾驶舱', ic:'🏠', Comp:DashboardPage },
+  { key:'cloudchain', label:'云控链路',   ic:'🔗', Comp:CloudChainPage },
+  { key:'topology',   label:'服务拓扑',   ic:'🕸', Comp:TopologyPage },
+  { key:'trace',      label:'链路追踪',   ic:'🔍', Comp:TracePage },
+  { key:'kafka',      label:'Kafka 监控', ic:'📊', Comp:KafkaPage },
+  { key:'mqtt',       label:'MQTT 监控',  ic:'📡', Comp:MqttPage },
+  { key:'devices',    label:'设备管理',   ic:'📱', Comp:DevicePage },
+  { key:'alerts',     label:'告警中心',   ic:'🔔', Comp:AlertPage, badge:23 },
+  { key:'reports',    label:'报表分析',   ic:'📈', Comp:ReportPage },
+  { key:'config',     label:'配置管理',   ic:'⚙️', Comp:ConfigPage },
+];
+
+// ─── App ──────────────────────────────────────────────────
+
+const App = () => {
+  const [page,     setPage]     = React.useState('dashboard');
+  const [collapsed,setCollapsed]= React.useState(false);
+  const [env,      setEnv]      = React.useState('prod');
+  const [clock,    setClock]    = React.useState(new Date().toLocaleTimeString('zh-CN',{hour12:false}));
+  React.useEffect(()=>{ const t=setInterval(()=>setClock(new Date().toLocaleTimeString('zh-CN',{hour12:false})),1000); return()=>clearInterval(t); },[]);
+
+  const cur = NAV.find(n=>n.key===page) || NAV[0];
+  const PageComp = cur.Comp;
+
+  return (
+    <ConfigProvider theme={{
+      algorithm: theme.darkAlgorithm,
+      token: { colorPrimary:'#4096ff', colorBgContainer:'#161b2e', colorBgElevated:'#1a2035',
+               colorBgLayout:'#0a0e18', borderRadius:6, fontSize:13 },
+      components: {
+        Layout: { siderBg:'#0d1320', bodyBg:'#0a0e18', headerBg:'#0d1320' },
+        Menu:   { darkItemBg:'#0d1320', darkSubMenuItemBg:'#0d1320', darkItemHoverBg:'rgba(255,255,255,0.06)' },
+        Table:  { headerBg:'rgba(255,255,255,0.025)', rowHoverBg:'rgba(255,255,255,0.035)' },
+        Card:   { colorBorderSecondary:'rgba(255,255,255,0.08)' },
+      }
+    }}>
+      <Layout style={{ minHeight:'100vh' }}>
+        {/* ── Sider ── */}
+        <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}
+          width={200} collapsedWidth={58}
+          style={{ background:'#0d1320', borderRight:'1px solid rgba(255,255,255,0.06)', zIndex:10 }}>
+          <div className="logo-wrap">
+            <span style={{fontSize:22,flexShrink:0}}>🛰️</span>
+            {!collapsed && (
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'rgba(255,255,255,0.9)',lineHeight:1.3}}>车联网监控</div>
+                <div style={{fontSize:9,color:'rgba(255,255,255,0.3)',letterSpacing:1.5}}>FULL CHAIN MONITOR</div>
+              </div>
+            )}
+          </div>
+          <Menu theme="dark" mode="inline" selectedKeys={[page]}
+            style={{ background:'#0d1320', border:'none', marginTop:6 }}
+            onSelect={({key})=>setPage(key)}
+            items={NAV.map(n=>({
+              key: n.key,
+              icon: <span style={{fontSize:15}}>{n.ic}</span>,
+              label: collapsed ? null : (
+                <span style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span>{n.label}</span>
+                  {n.badge && <Badge count={n.badge} size="small" style={{marginLeft:4}}/>}
+                </span>
+              ),
+            }))}/>
+        </Sider>
+
+        <Layout>
+          {/* ── Header ── */}
+          <Header style={{
+            background:'#0d1320', padding:'0 18px', height:52,
+            borderBottom:'1px solid rgba(255,255,255,0.06)',
+            display:'flex', alignItems:'center', gap:14
+          }}>
+            <Breadcrumb style={{flex:1}} items={[
+              {title:<span style={{color:'rgba(255,255,255,0.3)',fontSize:12}}>首页</span>},
+              {title:<span style={{color:'rgba(255,255,255,0.85)',fontSize:12}}>{cur.label}</span>},
+            ]}/>
+            <Select size="small" value={env} onChange={setEnv} style={{width:108}}
+              options={[{value:'prod',label:'生产环境'},{value:'pre',label:'预发环境'},{value:'test',label:'测试环境'}]}/>
+            <div style={{fontFamily:'monospace',fontSize:11,color:'rgba(255,255,255,0.38)',
+              background:'rgba(255,255,255,0.05)',padding:'3px 10px',borderRadius:4,whiteSpace:'nowrap'}}>
+              2025-05-20 &nbsp;{clock}
+            </div>
+            <Badge count={23} size="small">
+              <Button type="text" size="small" style={{color:'rgba(255,255,255,0.5)',fontSize:16}}>🔔</Button>
+            </Badge>
+            <Space size={8}>
+              <Avatar size={28} style={{background:'#4096ff',fontSize:12,fontWeight:600}}>A</Avatar>
+              <Text style={{fontSize:12}}>admin</Text>
+            </Space>
+          </Header>
+
+          {/* ── Content ── */}
+          <Content style={{overflowY:'auto', background:'#0a0e18'}}>
+            <PageComp key={page}/>
+          </Content>
+        </Layout>
+      </Layout>
+    </ConfigProvider>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>

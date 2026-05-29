@@ -1,0 +1,20 @@
+remote_control_chain:
+  title: 云控远控链路监控页面
+
+  basic_info:
+    remote_command_id: CMD202505201000123456
+
+    command_type:
+      value: 车门解锁
+
+    initiator:
+      value: APP IOS 1.2.3
+
+    target_vehicle:
+      value: 粤A-12345
+
+    status:
+      value: 成功
+
+    total_latency:
+      value: 1283ms

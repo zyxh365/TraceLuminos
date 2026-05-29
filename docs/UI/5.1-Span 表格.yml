@@ -1,0 +1,18 @@
+trace_table:
+  columns:
+    - Span
+    - 服务
+    - 开始时间
+    - 耗时
+    - 状态
+
+  rows:
+    - APP
+    - 云网关
+    - MQTT Broker
+    - 规则引擎
+    - Kafka
+    - 车控服务
+    - T-Box
+    - 车辆执行
+    - 结果回传

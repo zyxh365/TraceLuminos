@@ -370,13 +370,21 @@ public class RemoteControlDashboardService {
     private long toLong(Object value) {
         if (value == null) return 0;
         if (value instanceof Number) return ((Number) value).longValue();
-        return Long.parseLong(value.toString());
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private double toDouble(Object value) {
         if (value == null) return 0;
         if (value instanceof Number) return ((Number) value).doubleValue();
-        return Double.parseDouble(value.toString());
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private double round(double value, int scale) {

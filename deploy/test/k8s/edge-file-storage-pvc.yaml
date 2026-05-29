@@ -1,0 +1,13 @@
+# Edge Collector file_storage PVC（测试环境）
+# 生产环境建议改用 StatefulSet + volumeClaimTemplates
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-file-storage
+  namespace: tsp-observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

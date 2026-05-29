@@ -1,0 +1,23 @@
+page_name: 车联网全链路监控平台
+
+theme:
+  style: 深色科技风
+  primary_color: 蓝黑色
+  accent_colors:
+    - 蓝色
+    - 青色
+    - 绿色
+    - 黄色
+    - 红色
+
+layout:
+  type: 左侧菜单 + 顶部导航 + 主内容区
+  responsive: 大屏驾驶舱风格
+
+main_modules:
+  - 云控远控链路监控
+  - MQTT拓扑图
+  - Kafka拓扑图
+  - 大屏驾驶舱
+  - 实时告警
+  - 地域分布

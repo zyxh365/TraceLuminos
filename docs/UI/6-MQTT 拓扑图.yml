@@ -1,0 +1,21 @@
+mqtt_topology:
+  producers:
+    - T-Box
+    - 车机
+    - 传感器
+    - 充电桩
+
+  mqtt_cluster:
+    name: EMQX 集群
+
+  topics:
+    - /telemetry/#
+    - /event/#
+    - /status/#
+    - /cmd/resp/#
+
+  consumers:
+    - 规则引擎
+    - 设备管理
+    - 车控服务
+    - 数据服务

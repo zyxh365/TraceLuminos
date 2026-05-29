@@ -1,0 +1,190 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP Edge Collector 配置 — Docker v6.0
+# 镜像: otel/opentelemetry-collector-contrib:v0.149.0
+# Kafka: 华为云 DMS Kafka（PLAINTEXT，无认证）
+# ═══════════════════════════════════════════════════════════════
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: localhost:1777
+  zpages:
+    endpoint: localhost:55679
+  file_storage:
+    directory: /var/otelcol/queue
+    create_directory: true
+    timeout: 10s
+    compaction:
+      on_start: true
+      directory: /var/otelcol/queue/tmp
+      max_transaction_size: 65536
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 64
+        keepalive:
+          server_parameters:
+            max_connection_idle: 10m
+            max_connection_age: 30m
+            time: 30s
+            timeout: 10s
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  batch:
+    send_batch_size: 2000
+    send_batch_max_size: 3000
+    timeout: 5s
+
+  resource:
+    attributes:
+      - key: collector.type
+        value: edge
+        action: insert
+      - key: deployment.environment
+        value: "${env:DEPLOY_ENV}"
+        action: insert
+      - key: region
+        value: "${env:REGION}"
+        action: insert
+
+  filter/kong_internal:
+    traces:
+      span:
+        - 'name == "kong.router"'
+        - 'name == "kong.access.plugin.opentelemetry"'
+        - 'name == "kong.header_filter.plugin.opentelemetry"'
+
+  filter/health:
+    traces:
+      span:
+        - 'attributes["http.target"] == "/healthz"'
+        - 'attributes["http.target"] == "/readyz"'
+        - 'attributes["http.target"] == "/favicon.ico"'
+
+exporters:
+  kafka/traces:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "edge-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    traces:
+      topic: ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-traces
+      encoding: otlp_proto
+
+    partition_traces_by_id: true
+
+    producer:
+      compression: zstd
+      compression_params:
+        level: 3
+      max_message_bytes: 5242880
+      required_acks: 1
+      flush_max_messages: 500
+      linger: 10ms
+      allow_auto_topic_creation: false
+
+    sending_queue:
+      enabled: true
+      num_consumers: 5
+      queue_size: 10000
+      storage: file_storage
+
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+      max_elapsed_time: 300s
+
+    metadata:
+      full: true
+      refresh_interval: 10m
+      retry:
+        max: 3
+        backoff: 250ms
+
+    timeout: 10s
+
+  kafka/metrics:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "edge-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    metrics:
+      topic: ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-metrics
+      encoding: otlp_proto
+
+    partition_metrics_by_resource_attributes: true
+
+    producer:
+      compression: zstd
+      compression_params:
+        level: 3
+      max_message_bytes: 5242880
+      required_acks: 1
+      flush_max_messages: 500
+      linger: 10ms
+      allow_auto_topic_creation: false
+
+    sending_queue:
+      enabled: true
+      num_consumers: 5
+      queue_size: 5000
+      storage: file_storage
+
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+      max_elapsed_time: 300s
+
+    metadata:
+      full: true
+      refresh_interval: 10m
+      retry:
+        max: 3
+        backoff: 250ms
+
+  debug:
+    verbosity: basic
+    sampling_initial: 2
+    sampling_thereafter: 500
+
+service:
+  extensions: [health_check, file_storage]
+
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      level: detailed
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, filter/kong_internal, filter/health, batch]
+      exporters: [kafka/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [kafka/metrics]

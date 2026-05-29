@@ -1,0 +1,18 @@
+sidebar:
+  width: 240px
+  style: 深色半透明
+
+  menus:
+    - 总览驾驶舱
+    - 云控链路
+    - 服务拓扑
+    - 链路追踪
+    - Kafka监控
+    - MQTT监控
+    - 设备管理
+    - 告警中心
+    - 报表分析
+    - 配置管理
+
+  active_menu:
+    - 云控链路

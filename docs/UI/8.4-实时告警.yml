@@ -1,0 +1,12 @@
+realtime_alerts:
+  columns:
+    - 级别
+    - 告警内容
+    - 设备范围
+    - 时间
+
+  examples:
+    - T-Box 连接超时
+    - Kafka 消费堆积
+    - MQTT 连接波动
+    - 设备心跳超时

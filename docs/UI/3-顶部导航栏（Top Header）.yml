@@ -1,0 +1,22 @@
+header:
+  height: 64px
+
+  left:
+    - 平台Logo
+    - 平台名称:
+        text: 车联网全链路监控平台 UI 原型
+
+  center:
+    - 环境切换:
+        value: 生产环境
+
+    - 时间范围选择器:
+        value: 2025-05-20 10:00:00 ~ 10:30:00
+
+  right:
+    - 搜索框
+    - 告警通知:
+        badge: 12
+    - 用户头像
+    - 用户名:
+        value: admin

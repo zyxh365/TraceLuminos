@@ -1,0 +1,79 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP 可观测性平台 — Server B Docker Compose
+# 版本：v5.0
+# 资源: 8C16G，运行 Edge×1 + Central×1 + VictoriaMetrics×1
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # Edge Collector × 1 — 接收 OTLP，处理后写入 Kafka
+  # ELB → Server B:4317
+  # ──────────────────────────────────────────────────────────
+  otel-edge:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-edge-3
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "13133:13133" # health
+    volumes:
+      - ../otel-edge/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/edge-queue:/var/otelcol/queue
+    cpus: 1
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ──────────────────────────────────────────────────────────
+  # Central Collector × 1 — 从 Kafka 消费，写入 ClickHouse
+  # ──────────────────────────────────────────────────────────
+  otel-central:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-central-2
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+      - .env
+    ports:
+      - "13134:13133" # health
+    volumes:
+      - ../otel-central/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/central-queue:/data/otelcol/storage
+    cpus: 2
+    mem_limit: 4g
+
+  # ──────────────────────────────────────────────────────────
+  # VictoriaMetrics — 指标存储与查询
+  # ──────────────────────────────────────────────────────────
+  victoriametrics:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/victoriametrics/victoria-metrics:v1.139.0
+    container_name: tsp-vm
+    restart: unless-stopped
+    command:
+      - "--storageDataPath=/var/lib/victoria-metrics"
+      - "--retentionPeriod=90d"
+      - "--memory.allowedPercent=80"
+    ports:
+      - "8428:8428"   # Ingest + Query + VMui
+    volumes:
+      - ./data/vm-data:/var/lib/victoria-metrics
+    cpus: 2
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8428/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+# 部署前先创建数据目录并授权：mkdir -p ./data/{edge-queue,central-queue,vm-data} && chmod -R 777 ./data

@@ -1,0 +1,208 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP Central Collector 配置 — Docker v5.0
+# 镜像: otel/opentelemetry-collector-contrib:v0.149.0
+# Kafka: 华为云 DMS Kafka（PLAINTEXT，无认证）
+# ═══════════════════════════════════════════════════════════════
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: localhost:1777
+  zpages:
+    endpoint: localhost:55679
+  file_storage:
+    directory: /data/otelcol/storage
+    create_directory: true
+
+receivers:
+  kafka/traces:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "central-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    traces:
+      topics:
+        - ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-traces
+      encoding: otlp_proto
+
+    group_id: "central-collector-traces-${env:DEPLOY_ENV}"
+    group_instance_id: "${env:HOSTNAME}-traces"
+    group_rebalance_strategy: cooperative-sticky
+
+    initial_offset: latest
+
+    session_timeout: 30s
+    heartbeat_interval: 10s
+
+    min_fetch_size: 1
+    max_fetch_size: 10485760
+    max_fetch_wait: 500ms
+    max_partition_fetch_size: 10485760
+
+    autocommit:
+      enable: true
+      interval: 5s
+
+    message_marking:
+      after: true
+      on_error: false
+      on_permanent_error: false
+
+    error_backoff:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+      max_elapsed_time: 0
+
+    metadata:
+      full: true
+      refresh_interval: 10m
+      retry:
+        max: 3
+        backoff: 250ms
+
+    telemetry:
+      metrics:
+        kafka_receiver_records_delay:
+          enabled: true
+
+  kafka/metrics:
+    brokers: ["${env:KAFKA_BOOTSTRAP_SERVERS}"]
+    protocol_version: "3.3.0"
+    client_id: "central-collector-${env:HOSTNAME}"
+
+    tls:
+      insecure: true
+
+    metrics:
+      topics:
+        - ${env:BUSINESS}-${env:DEPLOY_ENV}-otel-metrics
+      encoding: otlp_proto
+
+    group_id: "central-collector-metrics-${env:DEPLOY_ENV}"
+    group_instance_id: "${env:HOSTNAME}-metrics"
+    group_rebalance_strategy: cooperative-sticky
+
+    initial_offset: latest
+
+    session_timeout: 30s
+    heartbeat_interval: 10s
+
+    min_fetch_size: 1
+    max_fetch_size: 10485760
+    max_fetch_wait: 500ms
+    max_partition_fetch_size: 10485760
+
+    autocommit:
+      enable: true
+      interval: 5s
+
+    message_marking:
+      after: true
+      on_error: false
+      on_permanent_error: false
+
+    error_backoff:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+      max_elapsed_time: 0
+
+    metadata:
+      full: true
+      refresh_interval: 10m
+      retry:
+        max: 3
+        backoff: 250ms
+
+    telemetry:
+      metrics:
+        kafka_receiver_records_delay:
+          enabled: true
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  batch:
+    send_batch_size: 5000
+    send_batch_max_size: 10000
+    timeout: 10s
+
+  resource:
+    attributes:
+      - key: collector.type
+        value: central
+        action: insert
+      - key: deployment.environment
+        value: "${env:DEPLOY_ENV}"
+        action: insert
+      - key: region
+        value: "${env:REGION}"
+        action: insert
+
+exporters:
+  clickhouse:
+    endpoint: tcp://${env:CLICKHOUSE_HOST}:${env:CLICKHOUSE_NATIVE_PORT}
+    database: ${env:CLICKHOUSE_DATABASE}
+    username: ${env:CLICKHOUSE_USER}
+    password: ${env:CLICKHOUSE_PASSWORD}
+
+    timeout: 30s
+
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 10000
+
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+      max_elapsed_time: 0
+
+  prometheusremotewrite/vm:
+    endpoint: http://${env:VM_ENDPOINT}:8428/api/v1/write
+    resource_to_telemetry_conversion:
+      enabled: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 0
+
+  debug:
+    verbosity: basic
+    sampling_initial: 2
+    sampling_thereafter: 500
+
+service:
+  extensions: [health_check, file_storage]
+
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      level: detailed
+
+  pipelines:
+    traces:
+      receivers: [kafka/traces]
+      processors: [memory_limiter, resource, batch]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [kafka/metrics]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheusremotewrite/vm]

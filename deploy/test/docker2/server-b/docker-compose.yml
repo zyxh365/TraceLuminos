@@ -1,0 +1,89 @@
+# ═══════════════════════════════════════════════════════════════
+# TSP 可观测性平台 — Server B Docker Compose
+# 版本: v6.0
+# 资源: 8C16G，运行 Central×1 + VictoriaMetrics + ClickHouse
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────
+  # Central Collector × 1 — 从 Kafka 消费，写入 ClickHouse
+  # ──────────────────────────────────────────────────────────
+  otel-central:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/otel/opentelemetry-collector-contrib:v0.149.0
+    container_name: tsp-central-2
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    env_file:
+      - ../.env
+      - .env
+    ports:
+      - "13134:13133" # health
+    volumes:
+      - ../otel-central/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./data/central-queue:/data/otelcol/storage
+    depends_on:
+      - clickhouse
+    cpus: 2
+    mem_limit: 4g
+
+  # ──────────────────────────────────────────────────────────
+  # VictoriaMetrics — 指标存储与查询
+  # ──────────────────────────────────────────────────────────
+  victoriametrics:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/victoriametrics/victoria-metrics:v1.139.0
+    container_name: tsp-vm
+    restart: unless-stopped
+    command:
+      - "--storageDataPath=/var/lib/victoria-metrics"
+      - "--retentionPeriod=90d"
+      - "--memory.allowedPercent=80"
+    ports:
+      - "8428:8428"   # Ingest + Query + VMui
+    volumes:
+      - ./data/vm-data:/var/lib/victoria-metrics
+    cpus: 1
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8428/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ──────────────────────────────────────────────────────────
+  # ClickHouse — 链路数据存储
+  # ──────────────────────────────────────────────────────────
+  clickhouse:
+    image: swr.cn-east-4.myhuaweicloud.com/stsp/clickhouse/clickhouse-server:24.3.12.75-alpine
+    container_name: tsp-clickhouse
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "9000:9000"   # Native
+      - "8123:8123"   # HTTP
+    volumes:
+      - ./data/clickhouse-data:/var/lib/clickhouse
+      - ./data/clickhouse-logs:/var/log/clickhouse-server
+      - ../otel-clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
+      - ../otel-clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+      - ../otel-clickhouse/init.d:/docker-entrypoint-initdb.d:ro
+    environment:
+      CLICKHOUSE_DB: platform
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: tsp123456
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    cpus: 2
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+# 部署前先创建数据目录并授权:
+#   mkdir -p ./data/{central-queue,vm-data,clickhouse-data,clickhouse-logs}
+#   chmod -R 777 ./data

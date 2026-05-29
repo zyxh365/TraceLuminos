@@ -1,0 +1,40 @@
+chain_nodes:
+  - name: APP
+    ip: 10.0.01.123
+    latency: 120ms
+
+  - name: 云网关
+    ip: 10.0.01.243
+    latency: 35ms
+
+  - name: MQTT Broker
+    ip: 10.0.01.278
+    latency: 12ms
+
+  - name: 规则引擎
+    ip: 10.0.01.290
+    latency: 45ms
+
+  - name: Kafka
+    ip: 10.0.01.335
+    latency: 98ms
+
+  - name: 车控服务
+    ip: 10.0.01.433
+    latency: 210ms
+
+  - name: T-Box
+    ip: 10.0.01.643
+    latency: 420ms
+
+  - name: 车辆执行
+    ip: 10.0.02.063
+    latency: 100ms
+
+  - name: 结果回传
+    ip: 10.0.02.163
+    latency: 120ms
+
+  - name: APP
+    ip: 10.0.02.283
+    latency: 120ms
