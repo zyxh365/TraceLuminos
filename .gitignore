@@ -106,4 +106,5 @@ coverage/
 # System
 # =========================
 *.bak
-*.backup
+*.backuptsp-service1
+tsp-service2
