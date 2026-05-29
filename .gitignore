@@ -66,6 +66,10 @@ build/
 .classpath
 .settings/
 
+# Claude Code
+.claude/
+.agents/
+
 # =========================
 # Package Managers
 # =========================
